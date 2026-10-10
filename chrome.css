@@ -1,0 +1,259 @@
+/* ==========================================================================
+   Heliarc Ctrl+Tab for Zen Browser
+   Authentic Arc/Heliarc tab switcher with Liquid Glass HUD and live previews
+   ========================================================================== */
+
+#ctrlTab-panel {
+  --heliarc-card-width: 220px;
+  --heliarc-card-height: 146px;
+  --heliarc-card-radius: 14px;
+  --heliarc-panel-padding: 20px;
+  --heliarc-card-gap: 16px;
+  --heliarc-panel-radius: 34px; /* 14px + 20px padding */
+  --heliarc-ring-color: var(--heliarc-accent, var(--zen-primary-color, #0a84ff));
+
+  /* Transparent host popup covering the browser window */
+  --panel-background-color: transparent !important;
+  --panel-text-color: #ffffff !important;
+  --panel-border-color: transparent !important;
+  --panel-border-radius: 0 !important;
+  --panel-padding: 0 !important;
+  --panel-box-shadow: none !important;
+  --panel-box-shadow-margin: 0px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Full-window stage for centering and background click detection */
+#ctrlTab-panel #heliarc-stage {
+  display: flex !important;
+  flex: 1 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  box-sizing: border-box !important;
+  background: rgba(0, 0, 0, 0.2) !important;
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+  animation: heliarc-fade-in 0.15s ease-out !important;
+}
+
+/* Liquid Glass floating HUD container */
+#ctrlTab-panel #heliarc-card {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+  padding: var(--heliarc-panel-padding) !important;
+  border-radius: var(--heliarc-panel-radius) !important;
+  background: rgba(20, 20, 25, 0.76) !important;
+  backdrop-filter: blur(32px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55),
+              0 4px 16px rgba(0, 0, 0, 0.25),
+              inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+  max-width: 95vw !important;
+  overflow: visible !important;
+  animation: heliarc-pop-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Single horizontal row of preview cards */
+#ctrlTab-panel #ctrlTab-previews {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: var(--heliarc-card-gap) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  overflow: visible !important;
+}
+
+/* Hide the legacy "List all tabs" button container */
+#ctrlTab-panel #ctrlTab-showAll-container {
+  display: none !important;
+}
+
+/* Individual preview tile button */
+#ctrlTab-panel .ctrlTab-preview {
+  display: block !important;
+  position: relative !important;
+  width: var(--heliarc-card-width) !important;
+  height: var(--heliarc-card-height) !important;
+  min-width: var(--heliarc-card-width) !important;
+  max-width: var(--heliarc-card-width) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  cursor: pointer !important;
+  overflow: visible !important;
+}
+
+/* Card inner container */
+#ctrlTab-panel .ctrlTab-preview-inner {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+  box-sizing: border-box !important;
+  border-radius: var(--heliarc-card-radius) !important;
+  background: rgba(30, 30, 36, 0.85) !important;
+  overflow: visible !important;
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 0.22s ease,
+              outline-color 0.2s ease !important;
+}
+
+/* Full-bleed canvas container for screenshot thumbnail */
+#ctrlTab-panel .ctrlTab-canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: var(--heliarc-card-radius) !important;
+  overflow: hidden !important;
+  background: rgba(24, 24, 30, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  z-index: 1 !important;
+}
+
+#ctrlTab-panel .ctrlTab-canvas > img,
+#ctrlTab-panel .ctrlTab-canvas > canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: calc(var(--heliarc-card-radius) - 1px) !important;
+}
+
+/* Fallback card background with centered large icon for unloaded/blank tabs */
+#ctrlTab-panel .heliarc-fallback {
+  position: absolute !important;
+  inset: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: var(--heliarc-card-radius) !important;
+  background: radial-gradient(circle at 50% 40%, rgba(55, 55, 68, 0.85), rgba(22, 22, 28, 0.95)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  z-index: 0 !important;
+}
+
+#ctrlTab-panel .heliarc-fallback-icon {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 10px !important;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5)) !important;
+}
+
+/* Floating Title Pill in the top-left corner of each card */
+#ctrlTab-panel .heliarc-title-pill {
+  position: absolute !important;
+  top: 8px !important;
+  left: 8px !important;
+  max-width: calc(100% - 16px) !important;
+  height: 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 0 9px 0 7px !important;
+  border-radius: 9999px !important;
+  background: rgba(14, 14, 18, 0.68) !important;
+  backdrop-filter: blur(14px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(160%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35) !important;
+  z-index: 3 !important;
+  pointer-events: none !important;
+  box-sizing: border-box !important;
+}
+
+/* Favicon within the pill */
+#ctrlTab-panel .ctrlTab-favicon-container {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+#ctrlTab-panel .ctrlTab-favicon-container image,
+#ctrlTab-panel .ctrlTab-favicon {
+  width: 14px !important;
+  height: 14px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 3px !important;
+}
+
+/* Title text within the pill */
+#ctrlTab-panel .ctrlTab-label {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: #ffffff !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  min-width: 0 !important;
+  line-height: 1 !important;
+}
+
+/* ==========================================================================
+   Focus Ring & Selection Animation (Identical to Heliarc)
+   - Sits outside the card with a 3px gap and 3px stroke width
+   - Subtle card scale (1.025)
+   - Radiant glow shadow
+   ========================================================================== */
+#ctrlTab-panel .ctrlTab-preview:focus > .ctrlTab-preview-inner,
+#ctrlTab-panel .ctrlTab-preview[focused] > .ctrlTab-preview-inner {
+  transform: scale(1.025) translateY(-2px) !important;
+  outline: 3px solid var(--heliarc-ring-color) !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 22px color-mix(in srgb, var(--heliarc-ring-color) 50%, transparent),
+              0 14px 32px rgba(0, 0, 0, 0.45) !important;
+  z-index: 10 !important;
+}
+
+/* Subtle hover feedback */
+#ctrlTab-panel .ctrlTab-preview:hover:not(:focus) > .ctrlTab-preview-inner {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* Muted appearance for pending/unloaded tabs */
+#ctrlTab-panel .ctrlTab-preview[heliarc-unloaded] .ctrlTab-canvas {
+  opacity: 0.65 !important;
+}
+
+/* Keyframes for entrance animation */
+@keyframes heliarc-pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.95) translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes heliarc-fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}

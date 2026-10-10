@@ -1,0 +1,32 @@
+{
+  "id": "zen-heliarc-ctrltab",
+  "name": "Heliarc Ctrl+Tab",
+  "description": "Authentic Arc/Heliarc style Ctrl+Tab tab previews for Zen Browser. Single-row Liquid Glass HUD, full-bleed tab previews, floating frosted title pills, and smooth focus ring.",
+  "version": "1.0.0",
+  "author": "Antigravity / Zen Community",
+  "homepage": "https://github.com/manal/zen-heliarc-ctrltab",
+  "readme": "https://raw.githubusercontent.com/manal/zen-heliarc-ctrltab/main/README.md",
+  "tags": [
+    "tabs",
+    "arc",
+    "heliarc",
+    "switcher",
+    "JS"
+  ],
+  "fork": [
+    "zen"
+  ],
+  "preferences": "preferences.json",
+  "scripts": {
+    "JS/heliarc-ctrltab.uc.js": {
+      "name": "Heliarc Ctrl+Tab",
+      "description": "Arc-style Ctrl+Tab switcher with live previews, floating title pills, and Liquid Glass HUD.",
+      "include": [
+        "chrome://browser/content/browser.xhtml"
+      ]
+    }
+  },
+  "style": {
+    "chrome": "chrome.css"
+  }
+}

@@ -1,0 +1,75 @@
+[
+  {
+    "type": "checkbox",
+    "property": "zen-heliarc-ctrltab.enabled",
+    "label": "Enable Heliarc Ctrl+Tab preview switcher",
+    "defaultValue": true
+  },
+  {
+    "type": "separator",
+    "label": "Behavior",
+    "margin": "14px 0 14px 0"
+  },
+  {
+    "type": "dropdown",
+    "property": "zen-heliarc-ctrltab.open-mode",
+    "value": "number",
+    "label": "Switcher interaction mode",
+    "defaultValue": 0,
+    "options": [
+      {
+        "label": "Hold Ctrl, press Tab to move, release Ctrl to switch (Arc style)",
+        "value": 0
+      },
+      {
+        "label": "Sticky: press Ctrl+Tab once, stay open (Enter/click to switch, Esc to cancel)",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "type": "dropdown",
+    "property": "zen-heliarc-ctrltab.max-tabs",
+    "value": "number",
+    "label": "Number of recent tabs in the HUD strip",
+    "defaultValue": 6,
+    "options": [
+      { "label": "4 tabs", "value": 4 },
+      { "label": "5 tabs", "value": 5 },
+      { "label": "6 tabs (recommended)", "value": 6 },
+      { "label": "7 tabs", "value": 7 },
+      { "label": "8 tabs", "value": 8 },
+      { "label": "10 tabs", "value": 10 }
+    ]
+  },
+  {
+    "type": "dropdown",
+    "property": "zen-heliarc-ctrltab.open-delay",
+    "value": "number",
+    "label": "Delay before showing HUD (quick Ctrl+Tab tap flips back without opening HUD)",
+    "defaultValue": 200,
+    "options": [
+      { "label": "None: shows immediately", "value": 0 },
+      { "label": "100 ms", "value": 100 },
+      { "label": "200 ms (Firefox/Zen default)", "value": 200 },
+      { "label": "300 ms", "value": 300 }
+    ]
+  },
+  {
+    "type": "checkbox",
+    "property": "zen-heliarc-ctrltab.show-unloaded",
+    "label": "Include unloaded/pending tabs (displayed with centered icon card)",
+    "defaultValue": true
+  },
+  {
+    "type": "separator",
+    "label": "Appearance",
+    "margin": "14px 0 14px 0"
+  },
+  {
+    "type": "string",
+    "property": "zen-heliarc-ctrltab.accent",
+    "label": "Custom focus ring color (hex or CSS color, leave blank for Zen theme accent)",
+    "defaultValue": ""
+  }
+]

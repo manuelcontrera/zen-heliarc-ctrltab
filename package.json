@@ -1,0 +1,17 @@
+{
+  "name": "zen-heliarc-ctrltab",
+  "version": "1.0.0",
+  "description": "Arc/Heliarc style Ctrl+Tab tab previews for Zen Browser",
+  "scripts": {
+    "test": "node --test test/heliarc-ctrltab.test.js"
+  },
+  "keywords": [
+    "zen-browser",
+    "arc",
+    "heliarc",
+    "ctrltab",
+    "sine-mod"
+  ],
+  "author": "Robin Liquidium / Antigravity / Zen Community",
+  "license": "MIT"
+}
