@@ -24,7 +24,7 @@ Holding `Ctrl+Tab` brings up a floating **Liquid Glass HUD** displaying a single
 2. Navigate to **Sine Mods** (or Sine Marketplace).
 3. Paste this repository URL into the **Install from Link** field:
    ```text
-   https://github.com/manal/zen-heliarc-ctrltab
+   https://github.com/manuelcontrera/zen-heliarc-ctrltab
    ```
 4. Click **Install** and restart Zen Browser once.
 
