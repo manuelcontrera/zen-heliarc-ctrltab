@@ -113,6 +113,18 @@ function load(prefValues = {}) {
     updatePreview() {},
     open() { this._timer = 7; },
     handleEvent(e) { calls.push(e.type); },
+    detachTab(tab) {
+      if (Array.isArray(this._recentlyUsedTabs)) {
+        const i = this._recentlyUsedTabs.indexOf(tab);
+        if (i >= 0) this._recentlyUsedTabs.splice(i, 1);
+      }
+    },
+    attachTab(tab, pos) {
+      if (!Array.isArray(this._recentlyUsedTabs)) return;
+      this.detachTab(tab);
+      if (pos === 0) this._recentlyUsedTabs.unshift(tab);
+      else this._recentlyUsedTabs.push(tab);
+    },
   };
 
   const win = {
@@ -249,3 +261,61 @@ test('in-window gaussian blur backdrop lifecycle: attaches to documentElement an
   }
   assert.strictEqual(backdrop.hasAttribute('active'), false);
 });
+
+test('updatePreview with null/falsy tab: hides preview, resets unloaded attribute, and clears fallback icon', () => {
+  const { native } = load();
+  const preview = new El('button');
+  const inner = new El('div');
+  inner.className = 'ctrlTab-preview-inner';
+
+  const fav = new El('div');
+  fav.className = 'ctrlTab-favicon-container';
+  const label = new El('label');
+  label.className = 'ctrlTab-label';
+  inner.append(fav, label);
+  preview.append(inner);
+
+  // First populate with an unloaded/pending tab
+  native.updatePreview(preview, { hasAttribute: (a) => a === 'pending', image: 'icon.png' });
+  assert.strictEqual(preview.hidden, false);
+  assert.ok(preview.hasAttribute('heliarc-unloaded'));
+
+  // Now call updatePreview with null tab
+  native.updatePreview(preview, null);
+  assert.strictEqual(preview.hidden, true);
+  assert.strictEqual(preview.style.display, 'none');
+  assert.strictEqual(preview.hasAttribute('heliarc-unloaded'), false);
+
+  const fallback = inner.children.find((c) => c.className === 'heliarc-fallback');
+  const icon = fallback?.children?.find((c) => c.className === 'heliarc-fallback-icon');
+  assert.strictEqual(icon?.getAttribute('src'), null);
+});
+
+test('tabList deduplicates tabs and filters out closing, disconnected, or hidden tabs', () => {
+  const { native } = load();
+  const tab1 = { linkedPanel: 'p1', isConnected: true, label: 'Tab 1' };
+  const tab2 = { linkedPanel: 'p2', isConnected: true, label: 'Tab 2' };
+  const tab2Dup = { linkedPanel: 'p2', isConnected: true, label: 'Tab 2 Duplicate' };
+  const tabClosing = { linkedPanel: 'p3', closing: true, isConnected: true };
+  const tabDisconnected = { linkedPanel: 'p4', isConnected: false };
+  const tabHidden = { linkedPanel: 'p5', hidden: true, selected: false, isConnected: true };
+
+  native._recentlyUsedTabs = [tab1, tab2, tab2, tab2Dup, tabClosing, tabDisconnected, tabHidden, tab1];
+
+  const list = native.tabList;
+  assert.strictEqual(list.length, 2);
+  assert.strictEqual(list[0], tab1);
+  assert.strictEqual(list[1], tab2);
+});
+
+test('detachTab removes all duplicate occurrences of matching tab from _recentlyUsedTabs', () => {
+  const { native } = load();
+  const tabA = { linkedPanel: 'pA' };
+  const tabB = { linkedPanel: 'pB' };
+  native._recentlyUsedTabs = [tabA, tabB, tabA];
+
+  native.detachTab(tabA);
+  assert.strictEqual(native._recentlyUsedTabs.length, 1);
+  assert.strictEqual(native._recentlyUsedTabs[0], tabB);
+});
+

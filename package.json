@@ -1,6 +1,6 @@
 {
   "name": "zen-heliarc-ctrltab",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Arc/Heliarc style Ctrl+Tab tab previews for Zen Browser",
   "scripts": {
     "test": "node --test test/heliarc-ctrltab.test.js"

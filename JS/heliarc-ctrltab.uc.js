@@ -101,16 +101,121 @@
   const getThumb = tabPreviews.get.bind(tabPreviews);
   tabPreviews.get = (tab) => getThumb(tab);
 
+  // Strictly deduplicate and sanitize tab list to prevent duplicate or zombie cards
+  // (especially when tabs are hibernated/unloaded, in other workspaces, or closed)
+  const getCleanTabList = () => {
+    let rawList = [];
+    if (Array.isArray(native._recentlyUsedTabs)) {
+      rawList = native._recentlyUsedTabs;
+    } else if (window.gBrowser?.tabs) {
+      rawList = Array.from(window.gBrowser.tabs);
+    }
+
+    const showUnloaded = pref('show-unloaded', true);
+    const seenTabs = new Set();
+    const seenPanels = new Set();
+    const cleanList = [];
+
+    const addTab = (tab) => {
+      if (!tab) return;
+      if (tab.closing || tab.isConnected === false) return;
+      if (tab.hidden && !tab.selected) return;
+      if (!showUnloaded && tab.hasAttribute?.('pending')) return;
+      if (seenTabs.has(tab)) return;
+
+      const panelId = tab.linkedPanel || tab.permanentKey;
+      if (panelId && seenPanels.has(panelId)) return;
+
+      seenTabs.add(tab);
+      if (panelId) seenPanels.add(panelId);
+      cleanList.push(tab);
+    };
+
+    for (const tab of rawList) {
+      addTab(tab);
+    }
+
+    if (window.gBrowser?.tabs) {
+      for (const tab of window.gBrowser.tabs) {
+        addTab(tab);
+      }
+    }
+
+    if (Array.isArray(native._recentlyUsedTabs)) {
+      native._recentlyUsedTabs = cleanList.slice();
+    }
+
+    return cleanList;
+  };
+
+  try {
+    Object.defineProperty(native, 'tabList', {
+      get: getCleanTabList,
+      configurable: true,
+      enumerable: true,
+    });
+  } catch (e) {
+    console.error('Heliarc: Failed to define sanitized tabList getter', e);
+  }
+
+  // Ensure detachTab removes ALL occurrences of a tab (not just the first)
+  if (typeof native.detachTab === 'function') {
+    const originalDetachTab = native.detachTab;
+    native.detachTab = function (tab) {
+      if (Array.isArray(this._recentlyUsedTabs)) {
+        this._recentlyUsedTabs = this._recentlyUsedTabs.filter(
+          (t) => t !== tab && (!tab?.linkedPanel || t?.linkedPanel !== tab.linkedPanel)
+        );
+      } else {
+        originalDetachTab.call(this, tab);
+      }
+    };
+  }
+
+  // Ensure attachTab deduplicates before inserting
+  if (typeof native.attachTab === 'function') {
+    const originalAttachTab = native.attachTab;
+    native.attachTab = function (tab, pos) {
+      if (!tab || tab.closing || (tab.hidden && !tab.selected)) return;
+      this.detachTab(tab);
+      if (!Array.isArray(this._recentlyUsedTabs)) {
+        originalAttachTab.call(this, tab, pos);
+        return;
+      }
+      if (pos === 0) {
+        this._recentlyUsedTabs.unshift(tab);
+      } else if (typeof pos === 'number' && pos > 0) {
+        this._recentlyUsedTabs.splice(pos, 0, tab);
+      } else {
+        this._recentlyUsedTabs.push(tab);
+      }
+    };
+  }
+
   // Decorate each preview card to match Heliarc:
   // - Full bleed canvas thumbnail
   // - Top-left floating frosted pill (.heliarc-title-pill) with favicon + title
   // - Center fallback icon for unloaded or pending tabs
   const originalUpdatePreview = native.updatePreview;
   native.updatePreview = function (preview, tab) {
+    if (preview === this.showAllButton) return;
+
+    if (!tab) {
+      preview.hidden = true;
+      preview.style.display = 'none';
+      preview.removeAttribute('heliarc-unloaded');
+      const fallbackImg = preview.querySelector?.('.heliarc-fallback-icon');
+      if (fallbackImg) fallbackImg.removeAttribute('src');
+      originalUpdatePreview?.call(this, preview, tab);
+      return;
+    }
+
+    preview.hidden = false;
+    preview.style.removeProperty('display');
     originalUpdatePreview.call(this, preview, tab);
 
     const inner = preview.querySelector('.ctrlTab-preview-inner') || preview;
-    const isPending = !!tab?.hasAttribute('pending');
+    const isPending = !!tab.hasAttribute?.('pending');
     preview.toggleAttribute('heliarc-unloaded', isPending);
 
     // 1. Setup or update the floating Title Pill
@@ -135,15 +240,21 @@
 
     if (fallback) {
       const fallbackImg = fallback.querySelector('.heliarc-fallback-icon');
-      if (fallbackImg && tab?.image) {
-        fallbackImg.src = tab.image;
+      if (fallbackImg) {
+        if (tab.image) {
+          fallbackImg.src = tab.image;
+        } else {
+          fallbackImg.removeAttribute('src');
+        }
       }
     }
   };
 
   // Calculate responsive card width so cards NEVER overflow the container
   const updateLayoutMetrics = () => {
-    const visiblePreviews = native.previews.filter((p) => !p.hidden);
+    const visiblePreviews = native.previews.filter(
+      (p) => !p.hidden && p !== native.showAllButton && p.style.display !== 'none'
+    );
     const count = Math.max(1, visiblePreviews.length || pref('max-tabs', 6));
     const winW = window.innerWidth;
     const maxAvailableWidth = Math.min(winW * 0.92, 1440);
@@ -166,6 +277,7 @@
   // Customizable delay before HUD appears (quick tap switches without showing HUD)
   const originalOpen = native.open;
   native.open = function () {
+    getCleanTabList();
     const beforeTimer = this._timer;
     originalOpen.call(this);
     const delay = pref('open-delay', 200);
@@ -204,7 +316,9 @@
 
   // Keyboard navigation within the strip
   const move = (step, wrap = true) => {
-    const items = native.previews.filter((p) => !p.hidden);
+    const items = native.previews.filter(
+      (p) => !p.hidden && p !== native.showAllButton && p.style.display !== 'none'
+    );
     const currentIndex = items.indexOf(document.activeElement);
     if (currentIndex < 0) return;
 

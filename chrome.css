@@ -9,10 +9,10 @@
   --heliarc-card-radius: 14px;
   --heliarc-panel-padding: 20px;
   --heliarc-card-gap: 16px;
-  --heliarc-panel-radius: 34px; /* 14px + 20px padding */
+  --heliarc-panel-radius: 20px;
   --heliarc-ring-color: var(--heliarc-accent, var(--zen-primary-color, #0a84ff));
 
-  /* Completely transparent host popup with 34px rounded corners and no black sharp corners */
+  /* Completely transparent host popup with rounded corners and no black sharp corners */
   --arrowpanel-background: transparent !important;
   --arrowpanel-color: #ffffff !important;
   --arrowpanel-border-color: transparent !important;
@@ -73,8 +73,8 @@
   transform: translate(-50%, -50%) !important;
   display: none;
   pointer-events: none !important;
-  border-radius: var(--heliarc-panel-radius, 34px) !important;
-  clip-path: inset(0 round var(--heliarc-panel-radius, 34px)) !important;
+  border-radius: var(--heliarc-panel-radius, 20px) !important;
+  clip-path: inset(0 round var(--heliarc-panel-radius, 20px)) !important;
   backdrop-filter: blur(40px) saturate(190%) contrast(105%) !important;
   -webkit-backdrop-filter: blur(40px) saturate(190%) contrast(105%) !important;
   background: rgba(18, 18, 24, 0.40) !important;
@@ -149,6 +149,12 @@
   outline: none !important;
   cursor: pointer !important;
   overflow: visible !important;
+}
+
+/* Ensure hidden preview cards are never rendered */
+#ctrlTab-panel .ctrlTab-preview[hidden],
+#ctrlTab-panel .ctrlTab-preview[hidden="true"] {
+  display: none !important;
 }
 
 /* Card inner container */

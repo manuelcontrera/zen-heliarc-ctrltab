@@ -12,7 +12,7 @@ Holding `Ctrl+Tab` brings up a floating **Liquid Glass HUD** displaying a single
 - **Full-Bleed Visual Previews:** Live page screenshots scaled smoothly to fill each rounded preview card.
 - **Floating Frosted Title Pills:** Glass capsule in the top-left corner of each card displaying the favicon and title with backdrop blur.
 - **Luminous Focus Ring:** Continuous focus outline with an outer 3px gap, soft glow, and subtle scale effect matching your Zen theme's accent color (`--zen-primary-color`).
-- **Liquid Glass HUD:** Translucent dark panel with high-saturation background blur (`backdrop-filter: blur(32px)`), concentric border radii (`34px` panel, `14px` cards), and deep ambient drop shadow.
+- **Liquid Glass HUD:** Translucent dark panel with high-saturation background blur (`backdrop-filter: blur(32px)`), refined border radii (`20px` panel, `14px` cards), and deep ambient drop shadow.
 - **Graceful Fallbacks:** Tabs that are unloaded or pending display a frosted dark card with an enlarged central favicon and title pill.
 - **Smooth Cycling:** Key-repeat throttled to 8 tabs per second so you never lose track of your selection while holding Tab. Arrow keys (`←` / `→`) navigate effortlessly.
 

@@ -92,7 +92,7 @@ Heliarc sigue un diseño geométrico concéntrico estricto extraído de su imple
 * **Panel HUD exterior:**
   * Padding: `20px`
   * Gap entre tarjetas: `16px`
-  * Radio de borde (`panelRadius`): `34px` (`cardRadius (14px) + padding (20px) = 34px`)
+  * Radio de borde (`panelRadius`): `20px` (radio refinado y moderno, evitando bordes hipertrofiados o exagerados)
   * Material: `backdrop-filter: blur(40px) saturate(190%)`, fondo oscuro translúcido con borde esmerilado de 1px.
 * **Anillo de Foco (Focus Ring - v1.0.2):**
   * Posición: Exterior a la tarjeta con separación (`outline-offset: 3px`).
