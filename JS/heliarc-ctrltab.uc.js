@@ -60,12 +60,37 @@
   };
 
   // Mount the Liquid Glass HUD directly inside #ctrlTab-panel
-  // (No artificial full-screen stage to avoid unwanted dark bounding boxes or opacity artifacts)
   const card = el('div');
   card.id = 'heliarc-card';
 
   card.append(list);
   panel.append(card);
+
+  // In-window backdrop blur element inside document.documentElement.
+  // Blurs the web page directly in the window compositor context.
+  let backdrop = document.getElementById('heliarc-backdrop');
+  if (!backdrop && document.documentElement) {
+    backdrop = el('div');
+    backdrop.id = 'heliarc-backdrop';
+    document.documentElement.append(backdrop);
+  }
+
+  const syncBackdrop = (w, h) => {
+    if (!backdrop) return;
+    const width = w || (card ? card.offsetWidth : 0) || 0;
+    const height = h || (card ? card.offsetHeight : 0) || 0;
+    if (width > 0 && height > 0) {
+      backdrop.style.width = Math.round(width) + 'px';
+      backdrop.style.height = Math.round(height) + 'px';
+      backdrop.setAttribute('active', '');
+    }
+  };
+
+  const hideBackdrop = () => {
+    if (backdrop) {
+      backdrop.removeAttribute('active');
+    }
+  };
 
   // Hide the legacy "List all tabs" button container
   if (showAllContainer) {
@@ -237,6 +262,7 @@
     const startX = Math.max(0, Math.round((w - totalWidth) / 2));
     const startY = Math.max(0, Math.round((h - totalHeight) / 2));
 
+    syncBackdrop(totalWidth, totalHeight);
     panel.openPopup(root, 'overlap', startX, startY);
   };
 
@@ -244,13 +270,23 @@
   panel.addEventListener('popupshown', (e) => {
     if (e.target !== panel) return;
     const r = panel.getBoundingClientRect();
-    const exactX = Math.round((window.innerWidth - r.width) / 2);
-    const exactY = Math.round((window.innerHeight - r.height) / 2);
+    const curW = r.width || panel.clientWidth || 0;
+    const curH = r.height || panel.clientHeight || 0;
+    const exactX = Math.round((window.innerWidth - curW) / 2);
+    const exactY = Math.round((window.innerHeight - curH) / 2);
     panel.moveToAnchor(root, 'overlap', exactX, exactY);
+    syncBackdrop(curW, curH);
   });
+
+  panel.addEventListener('popuphiding', hideBackdrop);
+  panel.addEventListener('popuphidden', hideBackdrop);
 
   const observer = { observe: apply };
   apply();
   prefs.addObserver(P, observer);
-  window.addEventListener('unload', () => prefs.removeObserver(P, observer), { once: true });
+  window.addEventListener('unload', () => {
+    prefs.removeObserver(P, observer);
+    hideBackdrop();
+    backdrop?.remove();
+  }, { once: true });
 })();

@@ -21,6 +21,7 @@ class El {
   setAttribute(k, v) { this.attrs.set(k, v); }
   getAttribute(k) { return this.attrs.get(k) ?? null; }
   hasAttribute(k) { return this.attrs.has(k); }
+  removeAttribute(k) { this.attrs.delete(k); }
   toggleAttribute(k, on) { on ? this.attrs.set(k, '') : this.attrs.delete(k); }
   insertBefore(node, ref) {
     const idx = this.children.indexOf(ref);
@@ -94,7 +95,7 @@ function load(prefValues = {}) {
       if (id === 'ctrlTab-showAll-container') return showAll;
       return null;
     },
-    documentElement: {},
+    documentElement: new El('html'),
     createElementNS: (ns, tag) => {
       const e = new El(tag);
       made.push(e);
@@ -228,4 +229,23 @@ test('arrow keys navigate left and right through the single-row cards with wrap'
 
   keyEvent('ArrowLeft'); // wraps back to 2
   assert.strictEqual(env.document.activeElement, tiles[2]);
+});
+
+test('in-window gaussian blur backdrop lifecycle: attaches to documentElement and activates on open', () => {
+  const { native, panel } = load();
+  const backdrop = env.document.documentElement.children.find((c) => c.id === 'heliarc-backdrop');
+  assert.ok(backdrop, 'Backdrop element should be attached to documentElement');
+  assert.strictEqual(backdrop.hasAttribute('active'), false);
+
+  // Simulate _openPanel execution
+  native._openPanel();
+  assert.strictEqual(backdrop.hasAttribute('active'), true);
+  assert.ok(parseInt(backdrop.style.width, 10) > 0, 'Backdrop width should be calculated');
+  assert.ok(parseInt(backdrop.style.height, 10) > 0, 'Backdrop height should be calculated');
+
+  // Trigger popuphiding event
+  for (const listener of (panel.listeners.popuphiding || [])) {
+    listener();
+  }
+  assert.strictEqual(backdrop.hasAttribute('active'), false);
 });

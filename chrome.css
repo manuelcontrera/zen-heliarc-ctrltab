@@ -12,15 +12,24 @@
   --heliarc-panel-radius: 34px; /* 14px + 20px padding */
   --heliarc-ring-color: var(--heliarc-accent, var(--zen-primary-color, #0a84ff));
 
-  /* Completely transparent host popup with no default borders or black boxes */
+  /* Completely transparent host popup with 34px rounded corners and no black sharp corners */
+  --arrowpanel-background: transparent !important;
+  --arrowpanel-color: #ffffff !important;
+  --arrowpanel-border-color: transparent !important;
+  --arrowpanel-border-radius: var(--heliarc-panel-radius) !important;
+  --arrowpanel-box-shadow: none !important;
+  --arrowpanel-padding: 0 !important;
+  --panel-border-radius: var(--heliarc-panel-radius) !important;
   --panel-background: transparent !important;
   --panel-background-color: transparent !important;
+  --panel-color: #ffffff !important;
   --panel-text-color: #ffffff !important;
   --panel-border-color: transparent !important;
-  --panel-border-radius: 0 !important;
   --panel-padding: 0 !important;
+  --panel-shadow: none !important;
   --panel-box-shadow: none !important;
   --panel-box-shadow-margin: 0px !important;
+  --panel-shadow-margin: 0px !important;
   background: transparent !important;
   background-color: transparent !important;
   border: none !important;
@@ -28,16 +37,25 @@
   padding: 0 !important;
   margin: 0 !important;
   outline: none !important;
-  overflow: visible !important;
+  border-radius: var(--heliarc-panel-radius) !important;
+  clip-path: inset(0 round var(--heliarc-panel-radius)) !important;
   -moz-appearance: none !important;
 }
 
-/* Remove any background or shadow from internal Firefox panel parts */
+/* Remove any background, shadow or sharp corners from internal Firefox panel parts */
 #ctrlTab-panel::part(content),
 #ctrlTab-panel::part(arrow),
+#ctrlTab-panel::part(arrowbox),
 #ctrlTab-panel .panel-arrowcontent,
 #ctrlTab-panel .panel-arrowbox,
+#ctrlTab-panel .panel-viewcontainer,
+#ctrlTab-panel .panel-viewstack,
 #ctrlTab-panel .panel-subview-body {
+  --arrowpanel-background: transparent !important;
+  --arrowpanel-border-color: transparent !important;
+  --arrowpanel-box-shadow: none !important;
+  border-radius: var(--heliarc-panel-radius) !important;
+  clip-path: inset(0 round var(--heliarc-panel-radius)) !important;
   background: transparent !important;
   background-color: transparent !important;
   border: none !important;
@@ -47,7 +65,29 @@
   outline: none !important;
 }
 
-/* Liquid Glass floating HUD container with modern Gaussian blur */
+/* In-window Gaussian blur backdrop element (blurs the live web page directly in browser window compositor) */
+#heliarc-backdrop {
+  position: fixed !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  display: none;
+  pointer-events: none !important;
+  border-radius: var(--heliarc-panel-radius, 34px) !important;
+  clip-path: inset(0 round var(--heliarc-panel-radius, 34px)) !important;
+  backdrop-filter: blur(40px) saturate(190%) contrast(105%) !important;
+  -webkit-backdrop-filter: blur(40px) saturate(190%) contrast(105%) !important;
+  background: rgba(18, 18, 24, 0.40) !important;
+  z-index: 2147483646 !important;
+  box-sizing: border-box !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+#heliarc-backdrop[active] {
+  display: block !important;
+}
+
+/* Liquid Glass floating HUD container */
 #ctrlTab-panel #heliarc-card {
   display: flex !important;
   flex-direction: row !important;
@@ -58,9 +98,10 @@
   max-width: 96vw !important;
   padding: var(--heliarc-panel-padding) !important;
   border-radius: var(--heliarc-panel-radius) !important;
-  background: rgba(18, 18, 24, 0.74) !important;
-  backdrop-filter: blur(36px) saturate(190%) contrast(105%) !important;
-  -webkit-backdrop-filter: blur(36px) saturate(190%) contrast(105%) !important;
+  clip-path: inset(0 round var(--heliarc-panel-radius)) !important;
+  background: rgba(18, 18, 24, 0.45) !important;
+  backdrop-filter: blur(40px) saturate(190%) contrast(105%) !important;
+  -webkit-backdrop-filter: blur(40px) saturate(190%) contrast(105%) !important;
   border: 1px solid rgba(255, 255, 255, 0.16) !important;
   box-shadow: 0 28px 72px rgba(0, 0, 0, 0.55),
               0 6px 20px rgba(0, 0, 0, 0.3),
@@ -119,6 +160,7 @@
   border-radius: var(--heliarc-card-radius) !important;
   background: rgba(30, 30, 36, 0.85) !important;
   overflow: visible !important;
+  transform-origin: center center !important;
   transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
               box-shadow 0.22s ease,
               outline-color 0.2s ease !important;
@@ -223,14 +265,13 @@
 }
 
 /* ==========================================================================
-   Focus Ring & Selection Animation (Identical to Heliarc)
-   - Sits outside the card with a 3px gap and 3px stroke width
-   - Subtle card scale (1.025)
-   - Radiant glow shadow
+   Focus Ring & Selection Animation
+   - Symmetrically expands in the center (scale only, NO vertical translateY)
+   - Stays centered exactly in the middle of the container
    ========================================================================== */
 #ctrlTab-panel .ctrlTab-preview:focus > .ctrlTab-preview-inner,
 #ctrlTab-panel .ctrlTab-preview[focused] > .ctrlTab-preview-inner {
-  transform: scale(1.025) translateY(-2px) !important;
+  transform: scale(1.03) !important; /* Expands in place without shifting up */
   outline: 3px solid var(--heliarc-ring-color) !important;
   outline-offset: 3px !important;
   box-shadow: 0 0 22px color-mix(in srgb, var(--heliarc-ring-color) 50%, transparent),
@@ -238,9 +279,9 @@
   z-index: 10 !important;
 }
 
-/* Subtle hover feedback */
+/* Subtle hover feedback (scale only, stays centered) */
 #ctrlTab-panel .ctrlTab-preview:hover:not(:focus) > .ctrlTab-preview-inner {
-  transform: translateY(-1px) !important;
+  transform: scale(1.01) !important;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35) !important;
 }
 
@@ -253,10 +294,10 @@
 @keyframes heliarc-pop-in {
   0% {
     opacity: 0;
-    transform: scale(0.95) translateY(8px);
+    transform: scale(0.95);
   }
   100% {
     opacity: 1;
-    transform: scale(1) translateY(0);
+    transform: scale(1);
   }
 }

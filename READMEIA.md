@@ -80,23 +80,24 @@ El script inyecta la siguiente jerarquía dentro de `#ctrlTab-panel`:
 #### Centrado dinámico y prevención de desbordamientos:
 * **Centrado:** En `_openPanel` se calculan las coordenadas `(startX, startY)` y se abre el panel con `openPopup`. En el evento `popupshown` se invoca `panel.moveToAnchor(root, 'overlap', (w - r.width) / 2, (h - r.height) / 2)` para asegurar centrado vertical y horizontal absoluto.
 * **Escalado fluido de tarjetas:** `updateLayoutMetrics()` calcula dinámicamente el ancho óptimo de cada tarjeta según el ancho de la ventana (`window.innerWidth`) y la cantidad de pestañas para que las tarjetas **nunca desborden** el HUD ni sobresalgan por los extremos.
-* **Cero cajas de opacidad residual:** Se eliminaron wrappers artificiales de pantalla completa; tanto `#ctrlTab-panel` como sus pseudoelementos XUL (`::part(content)`, `.panel-arrowcontent`) se fuerzan a transparentes.
+* **Cero cajas de opacidad residual y puntas cuadradas (v1.0.2):** Se resetean todas las variables `--arrowpanel-*` y `--panel-*` a transparentes, y se aplica `clip-path: inset(0 round var(--heliarc-panel-radius))` tanto a `#ctrlTab-panel` como a sus partes XUL internas (`::part(content)`, `.panel-arrowcontent`), eliminando por completo cualquier esquina rectangular negra no redondeada.
+* **Gaussian Blur Backdrop en Compositor de Ventana (v1.0.2):** Debido a que en Windows las ventanas popup `<panel>` de Firefox operan en swapchains Direct3D independientes y no pueden muestrear el contenido web subyacente para `backdrop-filter`, se inyecta un elemento `#heliarc-backdrop` en `document.documentElement` (`browser.xhtml`). Este elemento se posiciona al centro (`left: 50%; top: 50%; transform: translate(-50%, -50%)`) sincronizando el tamaño del HUD, aplicando un desenfoque gaussiano real (`blur(40px) saturate(190%) contrast(105%)`) sobre la página viva directamente en WebRender.
 
 ### 3.3 Reglas Geométricas y Estilos (`chrome.css`)
 Heliarc sigue un diseño geométrico concéntrico estricto extraído de su implementación nativa en Swift:
 * **Tarjeta de previsualización:**
-  * Ancho: `220px`
-  * Alto: `146px`
+  * Ancho: `210px` (o dinámico según viewport)
+  * Alto: `140px`
   * Radio de borde (`cardRadius`): `14px`
 * **Panel HUD exterior:**
   * Padding: `20px`
   * Gap entre tarjetas: `16px`
   * Radio de borde (`panelRadius`): `34px` (`cardRadius (14px) + padding (20px) = 34px`)
-  * Material: `backdrop-filter: blur(32px) saturate(180%)`, fondo oscuro translúcido `rgba(20, 20, 25, 0.76)`.
-* **Anillo de Foco (Focus Ring):**
+  * Material: `backdrop-filter: blur(40px) saturate(190%)`, fondo oscuro translúcido con borde esmerilado de 1px.
+* **Anillo de Foco (Focus Ring - v1.0.2):**
   * Posición: Exterior a la tarjeta con separación (`outline-offset: 3px`).
   * Grosor de línea: `3px solid var(--heliarc-ring-color)`.
-  * Escala: `transform: scale(1.025) translateY(-2px)`.
+  * Escala simétrica sin desplazamiento: `transform: scale(1.03)` con `transform-origin: center center !important;` (sin `translateY` para que no suba ni se descentre).
   * Resplandor: `box-shadow: 0 0 22px color-mix(in srgb, var(--heliarc-ring-color) 50%, transparent)`.
 
 ---
