@@ -164,12 +164,10 @@ test('reflects preferences into Firefox native switches and enforces single-row 
   assert.strictEqual(native.previewsPerRow, 8);
 });
 
-test('constructs Heliarc DOM stage and card and hides showAll container', () => {
+test('constructs Heliarc HUD card and hides showAll container without unnecessary stage', () => {
   const { panel, showAll } = load();
-  const stage = panel.children.find((c) => c.id === 'heliarc-stage');
-  assert.ok(stage, 'Stage should exist');
-  const card = stage.children.find((c) => c.id === 'heliarc-card');
-  assert.ok(card, 'Card should exist');
+  const card = panel.children.find((c) => c.id === 'heliarc-card');
+  assert.ok(card, 'Card should exist directly inside panel');
   assert.strictEqual(showAll.style.display, 'none');
 });
 

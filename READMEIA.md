@@ -49,36 +49,38 @@ Zen Browser hereda de Mozilla Firefox el subsistema interno de cambio de pestañ
 El script inyecta la siguiente jerarquía dentro de `#ctrlTab-panel`:
 ```html
 <panel id="ctrlTab-panel">
-  <!-- 1. Stage transparente que cubre la ventana para centrado y clics exteriores -->
-  <div id="heliarc-stage">
-    <!-- 2. HUD flotante tipo Liquid Glass -->
-    <div id="heliarc-card">
-      <!-- 3. Lista nativa de previsualizaciones (en fila única flex) -->
-      <div id="ctrlTab-previews">
-        <button class="ctrlTab-preview">
-          <div class="ctrlTab-preview-inner">
-            <!-- Canvas con screenshot full-bleed -->
-            <div class="ctrlTab-canvas">
-              <canvas /> <!-- o <img> -->
-            </div>
-            <!-- Fallback para pestañas sin thumbnail / descargadas -->
-            <div class="heliarc-fallback">
-              <img class="heliarc-fallback-icon" src="..." />
-            </div>
-            <!-- Cápsula flotante superior izquierda con Favicon + Título -->
-            <div class="heliarc-title-pill">
-              <div class="ctrlTab-favicon-container">
-                <image class="ctrlTab-favicon" />
-              </div>
-              <label class="ctrlTab-label">Título de la pestaña</label>
-            </div>
+  <!-- 1. HUD flotante tipo Liquid Glass (montado directamente sin stage para evitar cajas negras) -->
+  <div id="heliarc-card">
+    <!-- 2. Lista nativa de previsualizaciones (en fila única flex) -->
+    <div id="ctrlTab-previews">
+      <button class="ctrlTab-preview">
+        <div class="ctrlTab-preview-inner">
+          <!-- Canvas con screenshot full-bleed -->
+          <div class="ctrlTab-canvas">
+            <canvas /> <!-- o <img> -->
           </div>
-        </button>
-      </div>
+          <!-- Fallback para pestañas sin thumbnail / descargadas -->
+          <div class="heliarc-fallback">
+            <img class="heliarc-fallback-icon" src="..." />
+          </div>
+          <!-- Cápsula flotante superior izquierda con Favicon + Título -->
+          <div class="heliarc-title-pill">
+            <div class="ctrlTab-favicon-container">
+              <image class="ctrlTab-favicon" />
+            </div>
+            <label class="ctrlTab-label">Título de la pestaña</label>
+          </div>
+        </div>
+      </button>
     </div>
   </div>
 </panel>
 ```
+
+#### Centrado dinámico y prevención de desbordamientos:
+* **Centrado:** En `_openPanel` se calculan las coordenadas `(startX, startY)` y se abre el panel con `openPopup`. En el evento `popupshown` se invoca `panel.moveToAnchor(root, 'overlap', (w - r.width) / 2, (h - r.height) / 2)` para asegurar centrado vertical y horizontal absoluto.
+* **Escalado fluido de tarjetas:** `updateLayoutMetrics()` calcula dinámicamente el ancho óptimo de cada tarjeta según el ancho de la ventana (`window.innerWidth`) y la cantidad de pestañas para que las tarjetas **nunca desborden** el HUD ni sobresalgan por los extremos.
+* **Cero cajas de opacidad residual:** Se eliminaron wrappers artificiales de pantalla completa; tanto `#ctrlTab-panel` como sus pseudoelementos XUL (`::part(content)`, `.panel-arrowcontent`) se fuerzan a transparentes.
 
 ### 3.3 Reglas Geométricas y Estilos (`chrome.css`)
 Heliarc sigue un diseño geométrico concéntrico estricto extraído de su implementación nativa en Swift:

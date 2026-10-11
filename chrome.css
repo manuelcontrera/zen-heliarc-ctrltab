@@ -4,15 +4,16 @@
    ========================================================================== */
 
 #ctrlTab-panel {
-  --heliarc-card-width: 220px;
-  --heliarc-card-height: 146px;
+  --heliarc-card-width: 210px;
+  --heliarc-card-height: 140px;
   --heliarc-card-radius: 14px;
   --heliarc-panel-padding: 20px;
   --heliarc-card-gap: 16px;
   --heliarc-panel-radius: 34px; /* 14px + 20px padding */
   --heliarc-ring-color: var(--heliarc-accent, var(--zen-primary-color, #0a84ff));
 
-  /* Transparent host popup covering the browser window */
+  /* Completely transparent host popup with no default borders or black boxes */
+  --panel-background: transparent !important;
   --panel-background-color: transparent !important;
   --panel-text-color: #ffffff !important;
   --panel-border-color: transparent !important;
@@ -21,46 +22,51 @@
   --panel-box-shadow: none !important;
   --panel-box-shadow-margin: 0px !important;
   background: transparent !important;
+  background-color: transparent !important;
   border: none !important;
   box-shadow: none !important;
   padding: 0 !important;
   margin: 0 !important;
+  outline: none !important;
+  overflow: visible !important;
+  -moz-appearance: none !important;
 }
 
-/* Full-window stage for centering and background click detection */
-#ctrlTab-panel #heliarc-stage {
-  display: flex !important;
-  flex: 1 !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  box-sizing: border-box !important;
-  background: rgba(0, 0, 0, 0.2) !important;
-  backdrop-filter: blur(4px) !important;
-  -webkit-backdrop-filter: blur(4px) !important;
-  animation: heliarc-fade-in 0.15s ease-out !important;
+/* Remove any background or shadow from internal Firefox panel parts */
+#ctrlTab-panel::part(content),
+#ctrlTab-panel::part(arrow),
+#ctrlTab-panel .panel-arrowcontent,
+#ctrlTab-panel .panel-arrowbox,
+#ctrlTab-panel .panel-subview-body {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  outline: none !important;
 }
 
-/* Liquid Glass floating HUD container */
+/* Liquid Glass floating HUD container with modern Gaussian blur */
 #ctrlTab-panel #heliarc-card {
   display: flex !important;
   flex-direction: row !important;
   align-items: center !important;
   justify-content: center !important;
   box-sizing: border-box !important;
+  width: fit-content !important;
+  max-width: 96vw !important;
   padding: var(--heliarc-panel-padding) !important;
   border-radius: var(--heliarc-panel-radius) !important;
-  background: rgba(20, 20, 25, 0.76) !important;
-  backdrop-filter: blur(32px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(32px) saturate(180%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55),
-              0 4px 16px rgba(0, 0, 0, 0.25),
-              inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
-  max-width: 95vw !important;
+  background: rgba(18, 18, 24, 0.74) !important;
+  backdrop-filter: blur(36px) saturate(190%) contrast(105%) !important;
+  -webkit-backdrop-filter: blur(36px) saturate(190%) contrast(105%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 0 28px 72px rgba(0, 0, 0, 0.55),
+              0 6px 20px rgba(0, 0, 0, 0.3),
+              inset 0 1px 1px rgba(255, 255, 255, 0.22) !important;
   overflow: visible !important;
-  animation: heliarc-pop-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  animation: heliarc-pop-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 /* Single horizontal row of preview cards */
@@ -70,9 +76,13 @@
   align-items: center !important;
   justify-content: center !important;
   gap: var(--heliarc-card-gap) !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
   margin: 0 !important;
   padding: 0 !important;
   border: none !important;
+  background: transparent !important;
   overflow: visible !important;
 }
 
@@ -83,12 +93,14 @@
 
 /* Individual preview tile button */
 #ctrlTab-panel .ctrlTab-preview {
-  display: block !important;
+  display: flex !important;
+  flex: 0 0 var(--heliarc-card-width) !important;
   position: relative !important;
   width: var(--heliarc-card-width) !important;
   height: var(--heliarc-card-height) !important;
-  min-width: var(--heliarc-card-width) !important;
+  min-width: 0 !important;
   max-width: var(--heliarc-card-width) !important;
+  box-sizing: border-box !important;
   margin: 0 !important;
   padding: 0 !important;
   background: transparent !important;
@@ -246,14 +258,5 @@
   100% {
     opacity: 1;
     transform: scale(1) translateY(0);
-  }
-}
-
-@keyframes heliarc-fade-in {
-  0% {
-    opacity: 0;
-  }
-  100% {
-    opacity: 1;
   }
 }

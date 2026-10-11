@@ -9,7 +9,6 @@
   window.__zenHeliarcCtrlTab = true;
 
   const HTML = 'http://www.w3.org/1999/xhtml';
-  const XUL = 'http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul';
   const P = 'zen-heliarc-ctrltab.';
   const prefs = Services.prefs;
 
@@ -60,32 +59,18 @@
     }
   };
 
-  // DOM Structure:
-  // #ctrlTab-panel (invisible window covering browser)
-  //   └── #heliarc-stage (flex centering container & click-outside catcher)
-  //         └── #heliarc-card (Liquid Glass HUD container)
-  //               └── #ctrlTab-previews (single horizontal row of cards)
-  const stage = el('div');
-  stage.id = 'heliarc-stage';
-
+  // Mount the Liquid Glass HUD directly inside #ctrlTab-panel
+  // (No artificial full-screen stage to avoid unwanted dark bounding boxes or opacity artifacts)
   const card = el('div');
   card.id = 'heliarc-card';
 
   card.append(list);
-  stage.append(card);
-  panel.append(stage);
+  panel.append(card);
 
   // Hide the legacy "List all tabs" button container
   if (showAllContainer) {
     showAllContainer.style.display = 'none';
   }
-
-  // Clicking on stage outside the HUD card dismisses the switcher
-  stage.addEventListener('mousedown', (e) => {
-    if (e.target === stage) {
-      panel.hidePopup();
-    }
-  });
 
   // Always fetch full thumbnails for all cards in the strip
   const getThumb = tabPreviews.get.bind(tabPreviews);
@@ -129,6 +114,28 @@
         fallbackImg.src = tab.image;
       }
     }
+  };
+
+  // Calculate responsive card width so cards NEVER overflow the container
+  const updateLayoutMetrics = () => {
+    const visiblePreviews = native.previews.filter((p) => !p.hidden);
+    const count = Math.max(1, visiblePreviews.length || pref('max-tabs', 6));
+    const winW = window.innerWidth;
+    const maxAvailableWidth = Math.min(winW * 0.92, 1440);
+    const gap = 16;
+    const padding = 20;
+
+    // Adapt card width dynamically to screen resolution & tab count
+    const calculatedWidth = Math.floor((maxAvailableWidth - (padding * 2) - ((count - 1) * gap)) / count);
+    const cardWidth = Math.max(120, Math.min(220, calculatedWidth));
+    const cardHeight = Math.round(cardWidth * (146 / 220));
+
+    panel.style.setProperty('--heliarc-card-width', cardWidth + 'px');
+    panel.style.setProperty('--heliarc-card-height', cardHeight + 'px');
+
+    const totalWidth = count * cardWidth + (count - 1) * gap + (padding * 2);
+    const totalHeight = cardHeight + (padding * 2);
+    return { totalWidth, totalHeight };
   };
 
   // Customizable delay before HUD appears (quick tap switches without showing HUD)
@@ -217,18 +224,30 @@
     }
   }, true);
 
-  // Position and open the full-screen transparent stage
+  // Position and open centered in the browser window
   const root = document.documentElement;
   native._openPanel = function () {
     tabPreviewPanelHelper.opening(this);
+    const { totalWidth, totalHeight } = updateLayoutMetrics();
+
     const w = window.innerWidth;
     const h = window.innerHeight;
 
-    panel.style.width = w + 'px';
-    panel.style.height = h + 'px';
+    // Pre-calculate exact center coordinates so it appears centered immediately
+    const startX = Math.max(0, Math.round((w - totalWidth) / 2));
+    const startY = Math.max(0, Math.round((h - totalHeight) / 2));
 
-    panel.openPopup(root, 'overlap', 0, 0);
+    panel.openPopup(root, 'overlap', startX, startY);
   };
+
+  // Re-center on popupshown to guarantee sub-pixel center alignment across all screen scalings
+  panel.addEventListener('popupshown', (e) => {
+    if (e.target !== panel) return;
+    const r = panel.getBoundingClientRect();
+    const exactX = Math.round((window.innerWidth - r.width) / 2);
+    const exactY = Math.round((window.innerHeight - r.height) / 2);
+    panel.moveToAnchor(root, 'overlap', exactX, exactY);
+  });
 
   const observer = { observe: apply };
   apply();
