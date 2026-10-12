@@ -43,7 +43,7 @@ Configurable directly from Zen Settings → **Sine Mods** → **Heliarc Ctrl+Tab
 | **Interaction mode** | **Hold mode** (hold Ctrl, press Tab, release Ctrl to switch) or **Sticky mode** (press Ctrl+Tab once, navigate, Enter/Click to switch, Esc to cancel). | `Hold mode` |
 | **Number of recent tabs** | Choose how many recent tabs appear in the strip (4, 5, 6, 7, 8, or 10). | `6 tabs` |
 | **Delay before HUD** | Delay before the visual panel pops up (`0ms`, `100ms`, `200ms`, `300ms`). Quick Ctrl+Tab flips tabs immediately. | `200ms` |
-| **Show unloaded tabs** | Whether to include hibernated/unloaded tabs in the switcher strip. | `true` |
+| **Show unloaded tabs** | Whether to include hibernated/unloaded tabs in the switcher strip. | `false` |
 | **Custom focus ring color** | Hex or CSS color string. Leave empty to use your live Zen theme accent. | *(Zen Accent)* |
 
 ---

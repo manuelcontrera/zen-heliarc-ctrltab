@@ -319,3 +319,34 @@ test('detachTab removes all duplicate occurrences of matching tab from _recently
   assert.strictEqual(native._recentlyUsedTabs[0], tabB);
 });
 
+test('default show-unloaded is false and excludes pending, discarded, and zen-unloaded tabs', () => {
+  const { store, native } = load();
+  assert.strictEqual(store['zen.ctrlTab.show-pending-tabs'], false);
+
+  const activeTab = { linkedPanel: 'p1', isConnected: true, label: 'Active Tab' };
+  const pendingTab = { linkedPanel: 'p2', isConnected: true, hasAttribute: (a) => a === 'pending' };
+  const discardedAttrTab = { linkedPanel: 'p3', isConnected: true, hasAttribute: (a) => a === 'discarded' };
+  const zenUnloadedTab = { linkedPanel: 'p4', isConnected: true, hasAttribute: (a) => a === 'zen-unloaded' };
+  const discardedPropTab = { linkedPanel: 'p5', isConnected: true, discarded: true };
+
+  native._recentlyUsedTabs = [activeTab, pendingTab, discardedAttrTab, zenUnloadedTab, discardedPropTab];
+
+  const list = native.tabList;
+  assert.strictEqual(list.length, 1);
+  assert.strictEqual(list[0], activeTab);
+});
+
+test('when show-unloaded is enabled, unloaded tabs are included in tabList', () => {
+  const { native } = load({ 'zen-heliarc-ctrltab.show-unloaded': true });
+  const activeTab = { linkedPanel: 'p1', isConnected: true, label: 'Active Tab' };
+  const pendingTab = { linkedPanel: 'p2', isConnected: true, hasAttribute: (a) => a === 'pending' };
+
+  native._recentlyUsedTabs = [activeTab, pendingTab];
+
+  const list = native.tabList;
+  assert.strictEqual(list.length, 2);
+  assert.strictEqual(list[0], activeTab);
+  assert.strictEqual(list[1], pendingTab);
+});
+
+

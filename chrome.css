@@ -12,7 +12,7 @@
   --heliarc-panel-radius: 20px;
   --heliarc-ring-color: var(--heliarc-accent, var(--zen-primary-color, #0a84ff));
 
-  /* Completely transparent host popup with rounded corners and no black sharp corners */
+  /* Completely borderless, transparent host popup centered on screen */
   --arrowpanel-background: transparent !important;
   --arrowpanel-color: #ffffff !important;
   --arrowpanel-border-color: transparent !important;
@@ -40,17 +40,22 @@
   border-radius: var(--heliarc-panel-radius) !important;
   clip-path: inset(0 round var(--heliarc-panel-radius)) !important;
   -moz-appearance: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 /* Remove any background, shadow or sharp corners from internal Firefox panel parts */
 #ctrlTab-panel::part(content),
-#ctrlTab-panel::part(arrow),
-#ctrlTab-panel::part(arrowbox),
-#ctrlTab-panel .panel-arrowcontent,
-#ctrlTab-panel .panel-arrowbox,
-#ctrlTab-panel .panel-viewcontainer,
-#ctrlTab-panel .panel-viewstack,
-#ctrlTab-panel .panel-subview-body {
+#ctrlTab-panel .panel-arrowcontent {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
   --arrowpanel-background: transparent !important;
   --arrowpanel-border-color: transparent !important;
   --arrowpanel-box-shadow: none !important;
@@ -63,6 +68,26 @@
   padding: 0 !important;
   margin: 0 !important;
   outline: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+#ctrlTab-panel::part(arrow),
+#ctrlTab-panel::part(arrowbox),
+#ctrlTab-panel .panel-arrowbox,
+#ctrlTab-panel .panel-arrow,
+#ctrlTab-panel .panel-viewcontainer,
+#ctrlTab-panel .panel-viewstack,
+#ctrlTab-panel .panel-subview-body,
+#ctrlTab-panel #ctrlTab-showAll-container {
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
 }
 
 /* In-window Gaussian blur backdrop element (blurs the live web page directly in browser window compositor) */
@@ -80,7 +105,9 @@
   background: rgba(18, 18, 24, 0.40) !important;
   z-index: 2147483646 !important;
   box-sizing: border-box !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
 }
 
 #heliarc-backdrop[active] {
@@ -96,16 +123,18 @@
   box-sizing: border-box !important;
   width: fit-content !important;
   max-width: 96vw !important;
+  height: calc(var(--heliarc-card-height) + (var(--heliarc-panel-padding) * 2)) !important;
+  min-height: 0 !important;
   padding: var(--heliarc-panel-padding) !important;
   border-radius: var(--heliarc-panel-radius) !important;
   clip-path: inset(0 round var(--heliarc-panel-radius)) !important;
   background: rgba(18, 18, 24, 0.45) !important;
   backdrop-filter: blur(40px) saturate(190%) contrast(105%) !important;
   -webkit-backdrop-filter: blur(40px) saturate(190%) contrast(105%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border: none !important;
   box-shadow: 0 28px 72px rgba(0, 0, 0, 0.55),
-              0 6px 20px rgba(0, 0, 0, 0.3),
-              inset 0 1px 1px rgba(255, 255, 255, 0.22) !important;
+              0 6px 20px rgba(0, 0, 0, 0.3) !important;
+  outline: none !important;
   overflow: visible !important;
   animation: heliarc-pop-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
@@ -118,6 +147,7 @@
   justify-content: center !important;
   gap: var(--heliarc-card-gap) !important;
   width: fit-content !important;
+  height: var(--heliarc-card-height) !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
   margin: 0 !important;
@@ -127,14 +157,11 @@
   overflow: visible !important;
 }
 
-/* Hide the legacy "List all tabs" button container */
-#ctrlTab-panel #ctrlTab-showAll-container {
-  display: none !important;
-}
-
 /* Individual preview tile button */
 #ctrlTab-panel .ctrlTab-preview {
   display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   flex: 0 0 var(--heliarc-card-width) !important;
   position: relative !important;
   width: var(--heliarc-card-width) !important;
@@ -149,6 +176,8 @@
   outline: none !important;
   cursor: pointer !important;
   overflow: visible !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
 }
 
 /* Ensure hidden preview cards are never rendered */
@@ -283,6 +312,15 @@
   box-shadow: 0 0 22px color-mix(in srgb, var(--heliarc-ring-color) 50%, transparent),
               0 14px 32px rgba(0, 0, 0, 0.45) !important;
   z-index: 10 !important;
+}
+
+/* Remove native button focus outline from the outer button wrapper */
+#ctrlTab-panel .ctrlTab-preview:focus,
+#ctrlTab-panel .ctrlTab-preview:focus-visible,
+#ctrlTab-panel .ctrlTab-preview:-moz-focusring {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
 }
 
 /* Subtle hover feedback (scale only, stays centered) */

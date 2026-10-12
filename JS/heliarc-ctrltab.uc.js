@@ -37,11 +37,22 @@
     return e;
   };
 
+  const isTabUnloaded = (tab) => {
+    if (!tab) return false;
+    return !!(
+      tab.hasAttribute?.('pending') ||
+      tab.hasAttribute?.('discarded') ||
+      tab.hasAttribute?.('zen-unloaded') ||
+      tab.discarded ||
+      tab.pending
+    );
+  };
+
   // Sync settings with Firefox/Zen internal preferences
   const apply = () => {
     const enabled = pref('enabled', true);
     const maxTabs = pref('max-tabs', 6);
-    const showUnloaded = pref('show-unloaded', true);
+    const showUnloaded = pref('show-unloaded', false);
 
     prefs.setBoolPref('browser.ctrlTab.sortByRecentlyUsed', enabled);
     prefs.setBoolPref('zen.ctrlTab.show-pending-tabs', showUnloaded);
@@ -111,7 +122,7 @@
       rawList = Array.from(window.gBrowser.tabs);
     }
 
-    const showUnloaded = pref('show-unloaded', true);
+    const showUnloaded = pref('show-unloaded', false);
     const seenTabs = new Set();
     const seenPanels = new Set();
     const cleanList = [];
@@ -120,7 +131,7 @@
       if (!tab) return;
       if (tab.closing || tab.isConnected === false) return;
       if (tab.hidden && !tab.selected) return;
-      if (!showUnloaded && tab.hasAttribute?.('pending')) return;
+      if (!showUnloaded && isTabUnloaded(tab)) return;
       if (seenTabs.has(tab)) return;
 
       const panelId = tab.linkedPanel || tab.permanentKey;
@@ -177,6 +188,7 @@
     const originalAttachTab = native.attachTab;
     native.attachTab = function (tab, pos) {
       if (!tab || tab.closing || (tab.hidden && !tab.selected)) return;
+      if (!pref('show-unloaded', false) && isTabUnloaded(tab)) return;
       this.detachTab(tab);
       if (!Array.isArray(this._recentlyUsedTabs)) {
         originalAttachTab.call(this, tab, pos);
@@ -215,7 +227,7 @@
     originalUpdatePreview.call(this, preview, tab);
 
     const inner = preview.querySelector('.ctrlTab-preview-inner') || preview;
-    const isPending = !!tab.hasAttribute?.('pending');
+    const isPending = isTabUnloaded(tab);
     preview.toggleAttribute('heliarc-unloaded', isPending);
 
     // 1. Setup or update the floating Title Pill
@@ -383,9 +395,8 @@
   // Re-center on popupshown to guarantee sub-pixel center alignment across all screen scalings
   panel.addEventListener('popupshown', (e) => {
     if (e.target !== panel) return;
-    const r = panel.getBoundingClientRect();
-    const curW = r.width || panel.clientWidth || 0;
-    const curH = r.height || panel.clientHeight || 0;
+    const curW = (card && card.offsetWidth) || panel.clientWidth || (panel.getBoundingClientRect?.().width) || 0;
+    const curH = (card && card.offsetHeight) || panel.clientHeight || (panel.getBoundingClientRect?.().height) || 0;
     const exactX = Math.round((window.innerWidth - curW) / 2);
     const exactY = Math.round((window.innerHeight - curH) / 2);
     panel.moveToAnchor(root, 'overlap', exactX, exactY);
