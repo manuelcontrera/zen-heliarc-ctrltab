@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name           Heliarc Ctrl+Tab
-// @description    Arc-style single-row tab switcher with live previews and Liquid Glass HUD for Zen Browser.
+// @name           Heliarc Ctrl+Tab & Spotlight Search
+// @description    Arc-style single-row tab switcher with live previews and floating Spotlight tab & web search bar (SpotTab) for Zen Browser.
 // @include        main
 // ==/UserScript==
 
@@ -48,6 +48,9 @@
     );
   };
 
+  // Forward declarations for search modal
+  let searchModal = null;
+
   // Sync settings with Firefox/Zen internal preferences
   const apply = () => {
     const enabled = pref('enabled', true);
@@ -65,8 +68,10 @@
     const accent = String(pref('accent', '')).trim();
     if (accent) {
       panel.style.setProperty('--heliarc-accent', accent);
+      if (searchModal) searchModal.style.setProperty('--heliarc-accent', accent);
     } else {
       panel.style.removeProperty('--heliarc-accent');
+      if (searchModal) searchModal.style.removeProperty('--heliarc-accent');
     }
   };
 
@@ -352,6 +357,12 @@
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
       move(-1, true);
+    } else if (e.key === ' ' || e.code === 'Space') {
+      if (pref('search-enabled', true)) {
+        e.preventDefault();
+        e.stopPropagation();
+        openSearch();
+      }
     }
   });
 
@@ -369,7 +380,7 @@
     }
     lastStep = e.timeStamp;
 
-    const popup = e.target.closest?.('panel, menupopup, [popover]');
+    const popup = e.target?.closest?.('panel, menupopup, [popover]');
     if (popup && popup !== panel) {
       native.onKeyDown(e);
     }
@@ -406,6 +417,475 @@
   panel.addEventListener('popuphiding', hideBackdrop);
   panel.addEventListener('popuphidden', hideBackdrop);
 
+  // =========================================================================
+  // Spotlight Tab & Web Search (SpotTab) Module
+  // Runs in browser chrome context, completely isolated from webpage CSS/extensions
+  // =========================================================================
+
+  const searchOverlay = el('div', 'heliarc-search-overlay');
+  searchOverlay.id = 'heliarc-search-overlay';
+
+  searchModal = el('div');
+  searchModal.id = 'heliarc-search-modal';
+
+  const searchHeader = el('div');
+  searchHeader.id = 'heliarc-search-header';
+
+  const searchIcon = el('div');
+  searchIcon.id = 'heliarc-search-icon';
+  searchIcon.innerHTML = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>';
+
+  const searchInput = el('input');
+  searchInput.id = 'heliarc-search-input';
+  searchInput.setAttribute('type', 'text');
+  searchInput.setAttribute('placeholder', 'Buscar pestañas abiertas, historial o en la web...');
+  searchInput.setAttribute('spellcheck', 'false');
+  searchInput.setAttribute('autocomplete', 'off');
+
+  const searchBadge = el('span');
+  searchBadge.id = 'heliarc-search-shortcut-badge';
+  searchBadge.textContent = 'Esc para cerrar';
+
+  const searchList = el('ul');
+  searchList.id = 'heliarc-search-list';
+
+  const searchEmpty = el('div');
+  searchEmpty.id = 'heliarc-search-empty';
+  searchEmpty.textContent = 'No se encontraron resultados';
+  searchEmpty.style.setProperty('display', 'none');
+
+  const searchFooter = el('div');
+  searchFooter.id = 'heliarc-search-footer';
+  searchFooter.innerHTML = '<span><kbd>↑</kbd><kbd>↓</kbd> Navegar</span><span><kbd>↵</kbd> Abrir</span><span><kbd>Del</kbd> Cerrar pestaña</span><span><kbd>Esc</kbd> Salir</span>';
+
+  searchHeader.append(searchIcon, searchInput, searchBadge);
+  searchModal.append(searchHeader, searchList, searchEmpty, searchFooter);
+  searchOverlay.append(searchModal);
+
+  const mainWindow = document.getElementById('main-window') || document.documentElement;
+  if (mainWindow) {
+    mainWindow.append(searchOverlay);
+  }
+
+  let searchIsOpen = false;
+  let searchItems = [];
+  let searchSelectedIndex = 0;
+
+  // Resolve Zen Workspace name for a given tab
+  const getTabWorkspaceName = (tab) => {
+    if (!tab) return '';
+    const directName = tab.getAttribute?.('zen-workspace-name');
+    if (directName) return directName;
+    const wsId = tab.getAttribute?.('zen-workspace-id');
+    if (!wsId) return '';
+    try {
+      if (window.gZenWorkspaces) {
+        if (typeof window.gZenWorkspaces.getWorkspace === 'function') {
+          const ws = window.gZenWorkspaces.getWorkspace(wsId);
+          if (ws?.name) return ws.name;
+        }
+        if (Array.isArray(window.gZenWorkspaces.workspaces)) {
+          const ws = window.gZenWorkspaces.workspaces.find((w) => w.id === wsId);
+          if (ws?.name) return ws.name;
+        }
+      }
+    } catch {}
+    return '';
+  };
+
+  // Collect all currently open tabs from the window
+  const collectOpenTabs = () => {
+    const tabs = [];
+    const currentWin = window;
+    const currentTab = currentWin.gBrowser?.selectedTab;
+
+    const rawTabs = currentWin.gBrowser?.tabs ? Array.from(currentWin.gBrowser.tabs) : [];
+    for (const tab of rawTabs) {
+      if (!tab || tab.closing || tab.isConnected === false) continue;
+      const url = tab.linkedBrowser?.currentURI?.spec || tab.getAttribute?.('zen-url') || tab.getAttribute?.('url') || '';
+      const title = tab.label || tab.getAttribute?.('label') || 'Nueva pestaña';
+      const icon = tab.getAttribute?.('image') || tab.image || '';
+      const workspace = getTabWorkspaceName(tab);
+      const isCurrent = tab === currentTab;
+
+      tabs.push({
+        type: 'tab',
+        tab,
+        title,
+        url,
+        icon,
+        workspace,
+        isCurrent,
+        win: currentWin,
+      });
+    }
+    return tabs;
+  };
+
+  const switchToTab = (item) => {
+    closeSearch();
+    if (!item?.tab) return;
+    const win = item.win || item.tab.ownerGlobal || window;
+    try { win.focus?.(); } catch {}
+    const wsId = item.tab.getAttribute?.('zen-workspace-id');
+    if (wsId && win.gZenWorkspaces && typeof win.gZenWorkspaces.changeWorkspace === 'function') {
+      try { win.gZenWorkspaces.changeWorkspace(wsId); } catch {}
+    }
+    if (win.gBrowser) {
+      win.gBrowser.selectedTab = item.tab;
+    }
+  };
+
+  const closeSelectedTab = (item) => {
+    if (!item?.tab) return;
+    const win = item.win || item.tab.ownerGlobal || window;
+    if (win.gBrowser && typeof win.gBrowser.removeTab === 'function') {
+      win.gBrowser.removeTab(item.tab);
+    }
+    updateSearchResults(searchInput.value || '');
+  };
+
+  const openWebSearch = (query) => {
+    closeSearch();
+    const trimmed = (query || '').trim();
+    if (!trimmed) return;
+    try {
+      if (window.BrowserSearch && typeof window.BrowserSearch.loadSearch === 'function') {
+        window.BrowserSearch.loadSearch(trimmed, true);
+        return;
+      }
+    } catch {}
+    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(trimmed)}`;
+    if (typeof window.openTrustedLinkIn === 'function') {
+      window.openTrustedLinkIn(searchUrl, 'tab');
+    } else if (window.gBrowser) {
+      window.gBrowser.addTab(searchUrl, { inBackground: false });
+    }
+  };
+
+  const openUrl = (url) => {
+    closeSearch();
+    const fullUrl = /^[a-zA-Z]+:\/\//.test(url) ? url : `https://${url}`;
+    if (typeof window.openTrustedLinkIn === 'function') {
+      window.openTrustedLinkIn(fullUrl, 'tab');
+    } else if (window.gBrowser) {
+      window.gBrowser.addTab(fullUrl, { inBackground: false });
+    }
+  };
+
+  const executeSearchItem = (item) => {
+    if (!item) return;
+    if (item.type === 'tab') {
+      switchToTab(item);
+    } else if (item.type === 'url') {
+      openUrl(item.url);
+    } else if (item.type === 'web') {
+      openWebSearch(item.query || searchInput.value || '');
+    }
+  };
+
+  const updateSearchResults = (query) => {
+    const trimmed = (query || '').trim().toLowerCase();
+    const allOpenTabs = collectOpenTabs();
+    const maxResults = pref('search-max-results', 8);
+    const allowWeb = pref('search-web-search', true);
+    const filtered = [];
+
+    if (!trimmed) {
+      const recentList = getCleanTabList();
+      const seen = new Set();
+      for (const t of recentList) {
+        const match = allOpenTabs.find((item) => item.tab === t);
+        if (match && !seen.has(match.tab)) {
+          seen.add(match.tab);
+          filtered.push(match);
+        }
+        if (filtered.length >= maxResults) break;
+      }
+      if (filtered.length < maxResults) {
+        for (const item of allOpenTabs) {
+          if (!seen.has(item.tab)) {
+            seen.add(item.tab);
+            filtered.push(item);
+          }
+          if (filtered.length >= maxResults) break;
+        }
+      }
+    } else {
+      for (const item of allOpenTabs) {
+        const matchTitle = (item.title || '').toLowerCase().includes(trimmed);
+        const matchUrl = (item.url || '').toLowerCase().includes(trimmed);
+        const matchWs = (item.workspace || '').toLowerCase().includes(trimmed);
+        if (matchTitle || matchUrl || matchWs) {
+          filtered.push(item);
+        }
+        if (filtered.length >= maxResults) break;
+      }
+
+      const isUrl = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/.*)?$/.test(trimmed) || trimmed.startsWith('localhost');
+      if (isUrl && allowWeb) {
+        filtered.push({
+          type: 'url',
+          title: `Ir a https://${trimmed}`,
+          url: trimmed,
+        });
+      }
+
+      if (allowWeb) {
+        filtered.push({
+          type: 'web',
+          title: `Buscar "${query.trim()}" en la web`,
+          url: 'Motor de búsqueda predeterminado',
+          query: query.trim(),
+        });
+      }
+    }
+
+    searchItems = filtered.slice(0, maxResults + 1);
+    if (searchItems.length > 0) {
+      if (!trimmed && searchItems.length > 1 && searchItems[0].isCurrent) {
+        searchSelectedIndex = 1;
+      } else {
+        searchSelectedIndex = 0;
+      }
+    } else {
+      searchSelectedIndex = -1;
+    }
+
+    renderSearchList();
+  };
+
+  const renderSearchList = () => {
+    if (typeof searchList.replaceChildren === 'function') {
+      searchList.replaceChildren();
+    } else {
+      while (searchList.firstChild) {
+        searchList.removeChild(searchList.firstChild);
+      }
+    }
+
+    if (searchItems.length === 0) {
+      searchEmpty.style.removeProperty('display');
+      return;
+    }
+    searchEmpty.style.setProperty('display', 'none');
+
+    searchItems.forEach((item, index) => {
+      const li = el('li', 'heliarc-search-item');
+      if (index === searchSelectedIndex) {
+        li.className = 'heliarc-search-item selected';
+        li.setAttribute('selected', '');
+      }
+
+      // Icon
+      const iconImg = el('img', 'heliarc-search-item-icon');
+      if (item.type === 'tab' && item.icon) {
+        iconImg.src = item.icon;
+      } else if (item.type === 'web') {
+        iconImg.src = 'chrome://global/skin/icons/search-glass.svg';
+      } else if (item.type === 'url') {
+        iconImg.src = 'chrome://global/skin/icons/open-in-new.svg';
+      } else {
+        iconImg.src = 'chrome://global/skin/icons/defaultFavicon.svg';
+      }
+      li.append(iconImg);
+
+      // Content
+      const content = el('div', 'heliarc-search-item-content');
+      const titleSpan = el('span', 'heliarc-search-item-title');
+      titleSpan.textContent = item.title;
+      content.append(titleSpan);
+
+      if (item.url) {
+        const sepSpan = el('span', 'heliarc-search-item-sep');
+        sepSpan.textContent = '—';
+        const urlSpan = el('span', 'heliarc-search-item-url');
+        urlSpan.textContent = item.url.replace(/^https?:\/\//, '');
+        content.append(sepSpan, urlSpan);
+      }
+      li.append(content);
+
+      // Badges
+      if (item.type === 'tab') {
+        if (item.workspace) {
+          const badge = el('span', 'heliarc-search-badge workspace');
+          badge.textContent = item.workspace;
+          li.append(badge);
+        } else if (item.isCurrent) {
+          const badge = el('span', 'heliarc-search-badge current');
+          badge.textContent = 'Actual';
+          li.append(badge);
+        }
+
+        const closeBtn = el('button', 'heliarc-search-close-tab');
+        closeBtn.setAttribute('title', 'Cerrar pestaña');
+        closeBtn.textContent = '✕';
+        closeBtn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          closeSelectedTab(item);
+        });
+        li.append(closeBtn);
+      } else if (item.type === 'web') {
+        const badge = el('span', 'heliarc-search-badge web');
+        badge.textContent = 'Web';
+        li.append(badge);
+      }
+
+      li.addEventListener('click', () => {
+        executeSearchItem(item);
+      });
+
+      searchList.append(li);
+    });
+  };
+
+  const openSearch = () => {
+    if (searchIsOpen) return;
+    if (!pref('search-enabled', true)) return;
+
+    if (panel && typeof panel.hidePopup === 'function') {
+      try { panel.hidePopup(); } catch {}
+    }
+
+    searchIsOpen = true;
+    searchOverlay.setAttribute('active', '');
+    searchInput.value = '';
+    updateSearchResults('');
+
+    setTimeout(() => {
+      try { searchInput.focus(); } catch {}
+    }, 20);
+  };
+
+  const closeSearch = () => {
+    if (!searchIsOpen) return;
+    searchIsOpen = false;
+    searchOverlay.removeAttribute('active');
+    searchInput.value = '';
+    try {
+      if (window.gBrowser?.selectedBrowser) {
+        window.gBrowser.selectedBrowser.focus();
+      }
+    } catch {}
+  };
+
+  const toggleSearch = () => {
+    if (searchIsOpen) {
+      closeSearch();
+    } else {
+      openSearch();
+    }
+  };
+
+  searchOverlay.addEventListener('click', (e) => {
+    if (e.target === searchOverlay) {
+      closeSearch();
+    }
+  });
+
+  searchInput.addEventListener('input', () => {
+    updateSearchResults(searchInput.value || '');
+  });
+
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (searchItems.length > 0) {
+        searchSelectedIndex = (searchSelectedIndex + 1) % searchItems.length;
+        renderSearchList();
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (searchItems.length > 0) {
+        searchSelectedIndex = (searchSelectedIndex - 1 + searchItems.length) % searchItems.length;
+        renderSearchList();
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (searchSelectedIndex >= 0 && searchSelectedIndex < searchItems.length) {
+        executeSearchItem(searchItems[searchSelectedIndex]);
+      } else if (searchInput.value && searchInput.value.trim()) {
+        openWebSearch(searchInput.value.trim());
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeSearch();
+    } else if (e.key === 'Delete' || (e.ctrlKey && (e.key === 'w' || e.key === 'W'))) {
+      if (searchSelectedIndex >= 0 && searchSelectedIndex < searchItems.length) {
+        const item = searchItems[searchSelectedIndex];
+        if (item && item.type === 'tab') {
+          e.preventDefault();
+          closeSelectedTab(item);
+        }
+      }
+    }
+  });
+
+  const matchesSearchShortcut = (e) => {
+    const configured = pref('search-shortcut', 'Ctrl+Space');
+    const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+
+    if (configured === 'Ctrl+Space') {
+      return (e.code === 'Space' || e.key === ' ') && isCtrlOrMeta && !e.altKey && !e.shiftKey;
+    }
+    if (configured === 'Ctrl+Shift+A') {
+      return (e.code === 'KeyA' || e.key === 'a' || e.key === 'A') && isCtrlOrMeta && e.shiftKey && !e.altKey;
+    }
+    if (configured === 'Alt+Space') {
+      return (e.code === 'Space' || e.key === ' ') && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;
+    }
+    if (configured === 'Ctrl+Alt+T') {
+      return (e.code === 'KeyT' || e.key === 't' || e.key === 'T') && isCtrlOrMeta && e.altKey && !e.shiftKey;
+    }
+    return (e.code === 'Space' || e.key === ' ') && isCtrlOrMeta && !e.altKey && !e.shiftKey;
+  };
+
+  window.addEventListener('keydown', (e) => {
+    if (matchesSearchShortcut(e)) {
+      if (!pref('search-enabled', true)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      toggleSearch();
+      return;
+    }
+    if (searchIsOpen && e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      closeSearch();
+      return;
+    }
+  }, true);
+
+  // Expose Spotlight Search API for tests and internal control
+  window.__zenHeliarcSearch = {
+    open: openSearch,
+    close: closeSearch,
+    toggle: toggleSearch,
+    isOpen: () => searchIsOpen,
+    getItems: () => searchItems,
+    getSelectedIndex: () => searchSelectedIndex,
+    setSelectedIndex: (idx) => {
+      searchSelectedIndex = idx;
+      renderSearchList();
+    },
+    updateQuery: (q) => {
+      searchInput.value = q;
+      updateSearchResults(q);
+    },
+    executeSelected: () => {
+      if (searchSelectedIndex >= 0 && searchSelectedIndex < searchItems.length) {
+        executeSearchItem(searchItems[searchSelectedIndex]);
+      }
+    },
+    elements: {
+      overlay: searchOverlay,
+      modal: searchModal,
+      input: searchInput,
+      list: searchList,
+      empty: searchEmpty,
+    },
+  };
+
   const observer = { observe: apply };
   apply();
   prefs.addObserver(P, observer);
@@ -413,5 +893,6 @@
     prefs.removeObserver(P, observer);
     hideBackdrop();
     backdrop?.remove();
+    searchOverlay?.remove();
   }, { once: true });
 })();

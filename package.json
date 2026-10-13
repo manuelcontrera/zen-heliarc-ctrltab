@@ -1,7 +1,7 @@
 {
   "name": "zen-heliarc-ctrltab",
-  "version": "1.0.4",
-  "description": "Arc/Heliarc style Ctrl+Tab tab previews for Zen Browser",
+  "version": "1.1.0",
+  "description": "Arc/Heliarc style Ctrl+Tab tab previews and Spotlight Tab Search for Zen Browser",
   "scripts": {
     "test": "node --test test/heliarc-ctrltab.test.js"
   },
@@ -10,6 +10,9 @@
     "arc",
     "heliarc",
     "ctrltab",
+    "spotlight",
+    "search",
+    "spottab",
     "sine-mod"
   ],
   "author": "Manuel Contreras",

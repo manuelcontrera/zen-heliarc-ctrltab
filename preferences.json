@@ -71,5 +71,54 @@
     "property": "zen-heliarc-ctrltab.accent",
     "label": "Custom focus ring color (hex or CSS color, leave blank for Zen theme accent)",
     "defaultValue": ""
+  },
+  {
+    "type": "separator",
+    "label": "Spotlight Tab & Web Search (SpotTab)",
+    "margin": "14px 0 14px 0"
+  },
+  {
+    "type": "checkbox",
+    "property": "zen-heliarc-ctrltab.search-enabled",
+    "label": "Enable Spotlight Tab Search bar",
+    "defaultValue": true
+  },
+  {
+    "type": "dropdown",
+    "property": "zen-heliarc-ctrltab.search-shortcut",
+    "value": "string",
+    "label": "Spotlight search shortcut",
+    "defaultValue": "Ctrl+Space",
+    "options": [
+      { "label": "Ctrl + Space (SpotTab default)", "value": "Ctrl+Space" },
+      { "label": "Ctrl + Shift + A (Search tabs standard)", "value": "Ctrl+Shift+A" },
+      { "label": "Alt + Space", "value": "Alt+Space" },
+      { "label": "Ctrl + Alt + T", "value": "Ctrl+Alt+T" }
+    ]
+  },
+  {
+    "type": "dropdown",
+    "property": "zen-heliarc-ctrltab.search-max-results",
+    "value": "number",
+    "label": "Maximum search results",
+    "defaultValue": 8,
+    "options": [
+      { "label": "6 results", "value": 6 },
+      { "label": "8 results (recommended)", "value": 8 },
+      { "label": "10 results", "value": 10 },
+      { "label": "12 results", "value": 12 }
+    ]
+  },
+  {
+    "type": "checkbox",
+    "property": "zen-heliarc-ctrltab.search-include-history",
+    "label": "Include history and bookmarks in search results",
+    "defaultValue": true
+  },
+  {
+    "type": "checkbox",
+    "property": "zen-heliarc-ctrltab.search-web-search",
+    "label": "Allow web search and URL navigation from search bar",
+    "defaultValue": true
   }
 ]

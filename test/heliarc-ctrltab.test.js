@@ -61,7 +61,7 @@ class El {
 }
 
 let env;
-function load(prefValues = {}) {
+function load(prefValues = {}, customTabs = []) {
   const store = { ...prefValues };
   const types = (v) => (typeof v === 'boolean' ? 128 : typeof v === 'number' ? 64 : typeof v === 'string' ? 32 : 0);
   const Services = {
@@ -127,6 +127,16 @@ function load(prefValues = {}) {
     },
   };
 
+  const mockBrowser = {
+    warmupTab() {},
+    tabs: customTabs,
+    selectedTab: customTabs[0] || null,
+    removeTab(t) {
+      const idx = this.tabs.indexOf(t);
+      if (idx >= 0) this.tabs.splice(idx, 1);
+    },
+  };
+
   const win = {
     tabPreviews: { aspectRatio: 0.625, get: () => Promise.resolve('thumb') },
     tabPreviewPanelHelper: { opening() { calls.push('opening'); } },
@@ -134,6 +144,7 @@ function load(prefValues = {}) {
     innerHeight: 800,
     listeners: {},
     addEventListener(t, f) { (this.listeners[t] ||= []).push(f); },
+    gBrowser: mockBrowser,
   };
 
   const ShortcutUtils = {
@@ -152,9 +163,9 @@ function load(prefValues = {}) {
     'gBrowser',
     'ShortcutUtils',
     code
-  )(win, doc, Services, native, {}, { warmupTab() {} }, ShortcutUtils);
+  )(win, doc, Services, native, {}, mockBrowser, ShortcutUtils);
 
-  return { store, panel, list, showAll, native, win, calls, made };
+  return { store, panel, list, showAll, native, win, calls, made, gBrowser: mockBrowser };
 }
 
 const ctrlUp = {
@@ -348,5 +359,157 @@ test('when show-unloaded is enabled, unloaded tabs are included in tabList', () 
   assert.strictEqual(list[0], activeTab);
   assert.strictEqual(list[1], pendingTab);
 });
+
+test('Spotlight Tab Search initializes API and attaches overlay to document', () => {
+  const { win, doc } = load();
+  assert.ok(win.__zenHeliarcSearch);
+  assert.strictEqual(typeof win.__zenHeliarcSearch.open, 'function');
+  assert.strictEqual(typeof win.__zenHeliarcSearch.close, 'function');
+  assert.strictEqual(typeof win.__zenHeliarcSearch.toggle, 'function');
+  assert.strictEqual(win.__zenHeliarcSearch.isOpen(), false);
+
+  const overlay = win.__zenHeliarcSearch.elements.overlay;
+  assert.ok(overlay);
+  assert.strictEqual(overlay.id, 'heliarc-search-overlay');
+});
+
+test('Spotlight Tab Search opens, marks overlay active, and lists open tabs', () => {
+  const tab1 = { label: 'GitHub - Repository', linkedPanel: 'p1', isConnected: true, getAttribute: () => null };
+  const tab2 = { label: 'YouTube - Video', linkedPanel: 'p2', isConnected: true, getAttribute: () => null };
+
+  const { win } = load({}, [tab1, tab2]);
+  const search = win.__zenHeliarcSearch;
+
+  search.open();
+  assert.strictEqual(search.isOpen(), true);
+  assert.ok(search.elements.overlay.hasAttribute('active'));
+
+  const items = search.getItems();
+  assert.strictEqual(items.length, 2);
+  assert.strictEqual(items[0].title, 'GitHub - Repository');
+  assert.strictEqual(items[1].title, 'YouTube - Video');
+
+  search.close();
+  assert.strictEqual(search.isOpen(), false);
+  assert.strictEqual(search.elements.overlay.hasAttribute('active'), false);
+});
+
+test('Spotlight Tab Search filters tabs by title and workspace', () => {
+  const tab1 = {
+    label: 'GitHub PR Review',
+    linkedPanel: 'p1',
+    isConnected: true,
+    getAttribute: (attr) => (attr === 'zen-workspace-name' ? 'Development' : null),
+  };
+  const tab2 = {
+    label: 'Figma Dashboard',
+    linkedPanel: 'p2',
+    isConnected: true,
+    getAttribute: (attr) => (attr === 'zen-workspace-name' ? 'Design' : null),
+  };
+
+  const { win } = load({}, [tab1, tab2]);
+  const search = win.__zenHeliarcSearch;
+
+  search.open();
+  search.updateQuery('figma');
+
+  const items = search.getItems();
+  assert.strictEqual(items[0].title, 'Figma Dashboard');
+  assert.strictEqual(items[0].workspace, 'Design');
+
+  search.updateQuery('Development');
+  const itemsDev = search.getItems();
+  assert.strictEqual(itemsDev[0].title, 'GitHub PR Review');
+});
+
+test('Spotlight Tab Search offers URL navigation and web search when typing query', () => {
+  const { win } = load({}, []);
+  const search = win.__zenHeliarcSearch;
+
+  search.open();
+  search.updateQuery('google.com');
+
+  const items = search.getItems();
+  const urlItem = items.find((i) => i.type === 'url');
+  const webItem = items.find((i) => i.type === 'web');
+
+  assert.ok(urlItem);
+  assert.strictEqual(urlItem.title, 'Ir a https://google.com');
+  assert.ok(webItem);
+  assert.strictEqual(webItem.query, 'google.com');
+});
+
+test('Spotlight Tab Search switches selected tab on execution and closes modal', () => {
+  const tab1 = { label: 'Tab 1', linkedPanel: 'p1', isConnected: true, getAttribute: () => null };
+  const tab2 = { label: 'Tab 2', linkedPanel: 'p2', isConnected: true, getAttribute: () => null };
+
+  const { win, gBrowser } = load({}, [tab1, tab2]);
+  const search = win.__zenHeliarcSearch;
+
+  search.open();
+  search.setSelectedIndex(1);
+  search.executeSelected();
+
+  assert.strictEqual(search.isOpen(), false);
+  assert.strictEqual(gBrowser.selectedTab, tab2);
+});
+
+test('Spotlight Tab Search toggles via Ctrl+Space shortcut keydown and closes on Escape', () => {
+  const { win } = load();
+  const search = win.__zenHeliarcSearch;
+
+  const keydownListeners = win.listeners['keydown'] || [];
+  assert.ok(keydownListeners.length > 0);
+
+  // Trigger Ctrl+Space shortcut
+  const ctrlSpaceEvent = {
+    code: 'Space',
+    key: ' ',
+    ctrlKey: true,
+    altKey: false,
+    shiftKey: false,
+    metaKey: false,
+    preventDefault() {},
+    stopPropagation() {},
+  };
+
+  for (const listener of keydownListeners) {
+    listener(ctrlSpaceEvent);
+  }
+  assert.strictEqual(search.isOpen(), true);
+
+  // Trigger Escape
+  const escEvent = {
+    key: 'Escape',
+    preventDefault() {},
+    stopPropagation() {},
+  };
+  for (const listener of keydownListeners) {
+    listener(escEvent);
+  }
+  assert.strictEqual(search.isOpen(), false);
+});
+
+test('pressing Space inside Ctrl+Tab panel opens Spotlight Search', () => {
+  const { win, panel } = load();
+  const search = win.__zenHeliarcSearch;
+
+  const keydownListeners = panel.listeners['keydown'] || [];
+  assert.ok(keydownListeners.length > 0);
+
+  const spaceEvent = {
+    key: ' ',
+    code: 'Space',
+    preventDefault() {},
+    stopPropagation() {},
+  };
+  for (const listener of keydownListeners) {
+    listener(spaceEvent);
+  }
+  assert.strictEqual(search.isOpen(), true);
+});
+
+
 
 
