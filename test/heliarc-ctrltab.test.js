@@ -454,6 +454,45 @@ test('Spotlight Tab Search switches selected tab on execution and closes modal',
   assert.strictEqual(gBrowser.selectedTab, tab2);
 });
 
+test('Spotlight Tab Search only calls changeWorkspace when tab belongs to different workspace', () => {
+  const wsChanged = [];
+  const tab1 = {
+    label: 'Tab 1',
+    linkedPanel: 'p1',
+    isConnected: true,
+    getAttribute: (attr) => (attr === 'zen-workspace-id' ? 'ws-A' : null),
+  };
+  const tab2 = {
+    label: 'Tab 2',
+    linkedPanel: 'p2',
+    isConnected: true,
+    getAttribute: (attr) => (attr === 'zen-workspace-id' ? 'ws-B' : null),
+  };
+
+  const { win, gBrowser } = load({}, [tab1, tab2]);
+  win.gZenWorkspaces = {
+    activeWorkspace: { id: 'ws-A' },
+    changeWorkspace(id) { wsChanged.push(id); },
+  };
+
+  const search = win.__zenHeliarcSearch;
+
+  // Switching to tab1 (same workspace 'ws-A'): changeWorkspace should NOT be called
+  search.open();
+  search.setSelectedIndex(0);
+  search.executeSelected();
+  assert.strictEqual(wsChanged.length, 0);
+  assert.strictEqual(gBrowser.selectedTab, tab1);
+
+  // Switching to tab2 (different workspace 'ws-B'): changeWorkspace should be called with 'ws-B'
+  search.open();
+  search.setSelectedIndex(1);
+  search.executeSelected();
+  assert.strictEqual(wsChanged.length, 1);
+  assert.strictEqual(wsChanged[0], 'ws-B');
+  assert.strictEqual(gBrowser.selectedTab, tab2);
+});
+
 test('Spotlight Tab Search toggles via Ctrl+Space shortcut keydown and closes on Escape', () => {
   const { win } = load();
   const search = win.__zenHeliarcSearch;

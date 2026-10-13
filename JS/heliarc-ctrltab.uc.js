@@ -519,17 +519,56 @@
   };
 
   const switchToTab = (item) => {
+    if (!item?.tab) {
+      closeSearch();
+      return;
+    }
+
+    const tab = item.tab;
+    const win = item.win || tab.ownerGlobal || window;
+
     closeSearch();
-    if (!item?.tab) return;
-    const win = item.win || item.tab.ownerGlobal || window;
+
     try { win.focus?.(); } catch {}
-    const wsId = item.tab.getAttribute?.('zen-workspace-id');
-    if (wsId && win.gZenWorkspaces && typeof win.gZenWorkspaces.changeWorkspace === 'function') {
-      try { win.gZenWorkspaces.changeWorkspace(wsId); } catch {}
+
+    const tabWsId = tab.getAttribute?.('zen-workspace-id');
+    const activeWs = win.gZenWorkspaces?.activeWorkspace;
+    const currentWsId =
+      (typeof activeWs === 'object' && activeWs?.id) ||
+      (typeof activeWs === 'string' && activeWs) ||
+      win.gZenWorkspaces?.activeWorkspaceId ||
+      win.gZenWorkspaces?.currentWorkspaceId ||
+      win.gBrowser?.selectedTab?.getAttribute?.('zen-workspace-id');
+
+    // Only change workspace if tab belongs to a DIFFERENT workspace
+    if (tabWsId && currentWsId && tabWsId !== currentWsId && win.gZenWorkspaces) {
+      if (typeof win.gZenWorkspaces.changeWorkspace === 'function') {
+        try { win.gZenWorkspaces.changeWorkspace(tabWsId); } catch {}
+      }
     }
+
     if (win.gBrowser) {
-      win.gBrowser.selectedTab = item.tab;
+      try {
+        win.gBrowser.selectedTab = tab;
+      } catch {}
+      try {
+        if (typeof win.gBrowser.warmupTab === 'function') {
+          win.gBrowser.warmupTab(tab);
+        }
+      } catch {}
     }
+
+    // Trigger tab click to run Zen's native tab-activation & wake-up hooks
+    try {
+      if (typeof tab.click === 'function') {
+        tab.click();
+      }
+    } catch {}
+
+    try {
+      const browser = tab.linkedBrowser || win.gBrowser?.selectedBrowser;
+      browser?.focus?.();
+    } catch {}
   };
 
   const closeSelectedTab = (item) => {
@@ -683,9 +722,7 @@
     searchInput.value = '';
     updateSearchResults('');
 
-    setTimeout(() => {
-      try { searchInput.focus(); } catch {}
-    }, 20);
+    try { searchInput.focus(); } catch {}
   };
 
   const closeSearch = () => {
@@ -733,11 +770,16 @@
       }
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (searchSelectedIndex >= 0 && searchSelectedIndex < searchItems.length) {
-        executeSearchItem(searchItems[searchSelectedIndex]);
+      e.stopPropagation();
+      const targetIndex = (searchSelectedIndex >= 0 && searchSelectedIndex < searchItems.length)
+        ? searchSelectedIndex
+        : (searchItems.length > 0 ? 0 : -1);
+      if (targetIndex >= 0) {
+        executeSearchItem(searchItems[targetIndex]);
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();
+      e.stopPropagation();
       closeSearch();
     } else if (e.key === 'Delete' || (e.ctrlKey && (e.key === 'w' || e.key === 'W'))) {
       if (searchSelectedIndex >= 0 && searchSelectedIndex < searchItems.length) {
