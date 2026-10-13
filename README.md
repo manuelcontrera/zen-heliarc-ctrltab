@@ -3,18 +3,17 @@
 An authentic **Arc Browser / Heliarc** tab switcher and **Spotlight command palette** mod for [Zen Browser](https://zen-browser.app).
 
 - Holding `Ctrl+Tab` brings up a floating **Liquid Glass HUD** displaying a single horizontal strip of your most recent tabs with live screenshots and floating frosted title pills.
-- Pressing `Ctrl+Space` (or Space while inside Ctrl+Tab) opens a native **Spotlight Tab Search (SpotTab)** bar to search tabs across Zen Workspaces, filter by URL/title, close tabs, or search the web directly.
+- Pressing `Ctrl+Space` (or Space while inside Ctrl+Tab) opens a centered **Spotlight Tab Search (SpotTab)** bar to search and jump to tabs across Zen Workspaces with backdrop glass blur.
 
 ---
 
 ## ✨ Features
 
 - **Single-Row Arc Strip:** Clean, centered horizontal row of your most recently used (MRU) tabs.
-- **Spotlight Tab & Web Search (SpotTab):** Instant floating search modal running directly in Zen's chrome UI layer—100% immune to web-page CSS or extensions like Dark Reader.
+- **Spotlight Tab Search (SpotTab):** Centered floating search modal running directly in Zen's chrome UI layer with Liquid Glass backdrop effect behind the modal—without blurring or darkening the rest of the web page.
 - **Zen Workspaces Integration:** Filter and jump directly to tabs across any Zen Workspace. Shows workspace badges and switches workspace automatically.
 - **Full-Bleed Visual Previews:** Live page screenshots scaled smoothly to fill each rounded preview card.
 - **Floating Frosted Title Pills:** Glass capsule in the top-left corner of each card displaying the favicon and title with backdrop blur.
-- **Web Search & Direct URLs:** Type a query and hit Enter to search with your default search engine or jump directly to URLs.
 - **Luminous Focus Ring:** Continuous focus outline with an outer 3px gap, soft glow, and subtle scale effect matching your Zen theme's accent color (`--zen-primary-color`).
 - **Liquid Glass HUD:** Translucent dark panel with high-saturation background blur (`backdrop-filter: blur(40px)`), refined border radii, and deep ambient drop shadow.
 - **Graceful Fallbacks:** Tabs that are unloaded or pending display a frosted dark card with an enlarged central favicon and title pill.
@@ -52,7 +51,6 @@ Configurable directly from Zen Settings → **Sine Mods** → **Heliarc Ctrl+Tab
 | **Enable Spotlight Search** | Toggle the floating Spotlight tab search bar. | `true` |
 | **Spotlight shortcut** | Choose shortcut (`Ctrl+Space`, `Ctrl+Shift+A`, `Alt+Space`, `Ctrl+Alt+T`). | `Ctrl+Space` |
 | **Max search results** | Maximum search results in Spotlight list (6, 8, 10, 12). | `8 results` |
-| **Web & URL search** | Allow web searches and URL navigation from search bar. | `true` |
 
 ---
 
@@ -69,9 +67,9 @@ Configurable directly from Zen Settings → **Sine Mods** → **Heliarc Ctrl+Tab
 
 ### Spotlight Search (`Ctrl + Space`)
 - `Ctrl + Space`: Open or close Spotlight Search from any page or browser screen.
-- `Type query`: Filters tabs by title, URL, or Zen workspace name.
+- `Type query`: Filters open tabs by title, URL, or Zen workspace name.
 - `Arrow Down` / `Arrow Up`: Select item in results list.
-- `Enter`: Switch to the selected tab, open URL, or perform web search.
+- `Enter`: Switch to the selected tab.
 - `Delete` / `Ctrl + W` (or click `✕` button): Close the highlighted open tab.
 - `Escape` or `Click outside`: Close Spotlight Search.
 

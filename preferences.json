@@ -74,7 +74,7 @@
   },
   {
     "type": "separator",
-    "label": "Spotlight Tab & Web Search (SpotTab)",
+    "label": "Spotlight Tab Search (SpotTab)",
     "margin": "14px 0 14px 0"
   },
   {
@@ -108,17 +108,6 @@
       { "label": "10 results", "value": 10 },
       { "label": "12 results", "value": 12 }
     ]
-  },
-  {
-    "type": "checkbox",
-    "property": "zen-heliarc-ctrltab.search-include-history",
-    "label": "Include history and bookmarks in search results",
-    "defaultValue": true
-  },
-  {
-    "type": "checkbox",
-    "property": "zen-heliarc-ctrltab.search-web-search",
-    "label": "Allow web search and URL navigation from search bar",
-    "defaultValue": true
   }
 ]
+

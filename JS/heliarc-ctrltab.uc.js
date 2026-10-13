@@ -438,7 +438,7 @@
   const searchInput = el('input');
   searchInput.id = 'heliarc-search-input';
   searchInput.setAttribute('type', 'text');
-  searchInput.setAttribute('placeholder', 'Buscar pestañas abiertas, historial o en la web...');
+  searchInput.setAttribute('placeholder', 'Buscar pestañas abiertas...');
   searchInput.setAttribute('spellcheck', 'false');
   searchInput.setAttribute('autocomplete', 'off');
 
@@ -451,15 +451,11 @@
 
   const searchEmpty = el('div');
   searchEmpty.id = 'heliarc-search-empty';
-  searchEmpty.textContent = 'No se encontraron resultados';
+  searchEmpty.textContent = 'No se encontraron pestañas abiertas';
   searchEmpty.style.setProperty('display', 'none');
 
-  const searchFooter = el('div');
-  searchFooter.id = 'heliarc-search-footer';
-  searchFooter.innerHTML = '<span><kbd>↑</kbd><kbd>↓</kbd> Navegar</span><span><kbd>↵</kbd> Abrir</span><span><kbd>Del</kbd> Cerrar pestaña</span><span><kbd>Esc</kbd> Salir</span>';
-
   searchHeader.append(searchIcon, searchInput, searchBadge);
-  searchModal.append(searchHeader, searchList, searchEmpty, searchFooter);
+  searchModal.append(searchHeader, searchList, searchEmpty);
   searchOverlay.append(searchModal);
 
   const mainWindow = document.getElementById('main-window') || document.documentElement;
@@ -545,42 +541,10 @@
     updateSearchResults(searchInput.value || '');
   };
 
-  const openWebSearch = (query) => {
-    closeSearch();
-    const trimmed = (query || '').trim();
-    if (!trimmed) return;
-    try {
-      if (window.BrowserSearch && typeof window.BrowserSearch.loadSearch === 'function') {
-        window.BrowserSearch.loadSearch(trimmed, true);
-        return;
-      }
-    } catch {}
-    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(trimmed)}`;
-    if (typeof window.openTrustedLinkIn === 'function') {
-      window.openTrustedLinkIn(searchUrl, 'tab');
-    } else if (window.gBrowser) {
-      window.gBrowser.addTab(searchUrl, { inBackground: false });
-    }
-  };
-
-  const openUrl = (url) => {
-    closeSearch();
-    const fullUrl = /^[a-zA-Z]+:\/\//.test(url) ? url : `https://${url}`;
-    if (typeof window.openTrustedLinkIn === 'function') {
-      window.openTrustedLinkIn(fullUrl, 'tab');
-    } else if (window.gBrowser) {
-      window.gBrowser.addTab(fullUrl, { inBackground: false });
-    }
-  };
-
   const executeSearchItem = (item) => {
     if (!item) return;
     if (item.type === 'tab') {
       switchToTab(item);
-    } else if (item.type === 'url') {
-      openUrl(item.url);
-    } else if (item.type === 'web') {
-      openWebSearch(item.query || searchInput.value || '');
     }
   };
 
@@ -588,7 +552,6 @@
     const trimmed = (query || '').trim().toLowerCase();
     const allOpenTabs = collectOpenTabs();
     const maxResults = pref('search-max-results', 8);
-    const allowWeb = pref('search-web-search', true);
     const filtered = [];
 
     if (!trimmed) {
@@ -621,27 +584,9 @@
         }
         if (filtered.length >= maxResults) break;
       }
-
-      const isUrl = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/.*)?$/.test(trimmed) || trimmed.startsWith('localhost');
-      if (isUrl && allowWeb) {
-        filtered.push({
-          type: 'url',
-          title: `Ir a https://${trimmed}`,
-          url: trimmed,
-        });
-      }
-
-      if (allowWeb) {
-        filtered.push({
-          type: 'web',
-          title: `Buscar "${query.trim()}" en la web`,
-          url: 'Motor de búsqueda predeterminado',
-          query: query.trim(),
-        });
-      }
     }
 
-    searchItems = filtered.slice(0, maxResults + 1);
+    searchItems = filtered.slice(0, maxResults);
     if (searchItems.length > 0) {
       if (!trimmed && searchItems.length > 1 && searchItems[0].isCurrent) {
         searchSelectedIndex = 1;
@@ -679,15 +624,7 @@
 
       // Icon
       const iconImg = el('img', 'heliarc-search-item-icon');
-      if (item.type === 'tab' && item.icon) {
-        iconImg.src = item.icon;
-      } else if (item.type === 'web') {
-        iconImg.src = 'chrome://global/skin/icons/search-glass.svg';
-      } else if (item.type === 'url') {
-        iconImg.src = 'chrome://global/skin/icons/open-in-new.svg';
-      } else {
-        iconImg.src = 'chrome://global/skin/icons/defaultFavicon.svg';
-      }
+      iconImg.src = item.icon || 'chrome://global/skin/icons/defaultFavicon.svg';
       li.append(iconImg);
 
       // Content
@@ -706,30 +643,24 @@
       li.append(content);
 
       // Badges
-      if (item.type === 'tab') {
-        if (item.workspace) {
-          const badge = el('span', 'heliarc-search-badge workspace');
-          badge.textContent = item.workspace;
-          li.append(badge);
-        } else if (item.isCurrent) {
-          const badge = el('span', 'heliarc-search-badge current');
-          badge.textContent = 'Actual';
-          li.append(badge);
-        }
-
-        const closeBtn = el('button', 'heliarc-search-close-tab');
-        closeBtn.setAttribute('title', 'Cerrar pestaña');
-        closeBtn.textContent = '✕';
-        closeBtn.addEventListener('click', (ev) => {
-          ev.stopPropagation();
-          closeSelectedTab(item);
-        });
-        li.append(closeBtn);
-      } else if (item.type === 'web') {
-        const badge = el('span', 'heliarc-search-badge web');
-        badge.textContent = 'Web';
+      if (item.workspace) {
+        const badge = el('span', 'heliarc-search-badge workspace');
+        badge.textContent = item.workspace;
+        li.append(badge);
+      } else if (item.isCurrent) {
+        const badge = el('span', 'heliarc-search-badge current');
+        badge.textContent = 'Actual';
         li.append(badge);
       }
+
+      const closeBtn = el('button', 'heliarc-search-close-tab');
+      closeBtn.setAttribute('title', 'Cerrar pestaña');
+      closeBtn.textContent = '✕';
+      closeBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        closeSelectedTab(item);
+      });
+      li.append(closeBtn);
 
       li.addEventListener('click', () => {
         executeSearchItem(item);
@@ -804,8 +735,6 @@
       e.preventDefault();
       if (searchSelectedIndex >= 0 && searchSelectedIndex < searchItems.length) {
         executeSearchItem(searchItems[searchSelectedIndex]);
-      } else if (searchInput.value && searchInput.value.trim()) {
-        openWebSearch(searchInput.value.trim());
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();

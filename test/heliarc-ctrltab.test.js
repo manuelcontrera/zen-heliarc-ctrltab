@@ -423,7 +423,7 @@ test('Spotlight Tab Search filters tabs by title and workspace', () => {
   assert.strictEqual(itemsDev[0].title, 'GitHub PR Review');
 });
 
-test('Spotlight Tab Search offers URL navigation and web search when typing query', () => {
+test('Spotlight Tab Search only searches open tabs and does not offer web or url search', () => {
   const { win } = load({}, []);
   const search = win.__zenHeliarcSearch;
 
@@ -431,14 +431,13 @@ test('Spotlight Tab Search offers URL navigation and web search when typing quer
   search.updateQuery('google.com');
 
   const items = search.getItems();
-  const urlItem = items.find((i) => i.type === 'url');
-  const webItem = items.find((i) => i.type === 'web');
+  assert.strictEqual(items.length, 0);
+  assert.strictEqual(search.elements.empty.style.vars['display'], undefined);
 
-  assert.ok(urlItem);
-  assert.strictEqual(urlItem.title, 'Ir a https://google.com');
-  assert.ok(webItem);
-  assert.strictEqual(webItem.query, 'google.com');
+  const hasFooter = search.elements.modal.children.some((c) => c.id === 'heliarc-search-footer');
+  assert.strictEqual(hasFooter, false);
 });
+
 
 test('Spotlight Tab Search switches selected tab on execution and closes modal', () => {
   const tab1 = { label: 'Tab 1', linkedPanel: 'p1', isConnected: true, getAttribute: () => null };
