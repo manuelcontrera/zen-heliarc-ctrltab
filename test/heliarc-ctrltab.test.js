@@ -145,6 +145,7 @@ function load(prefValues = {}, customTabs = []) {
     listeners: {},
     addEventListener(t, f) { (this.listeners[t] ||= []).push(f); },
     gBrowser: mockBrowser,
+    MouseEvent: globalThis.MouseEvent || function (t) { this.type = t; },
   };
 
   const ShortcutUtils = {
@@ -491,6 +492,35 @@ test('Spotlight Tab Search only calls changeWorkspace when tab belongs to differ
   assert.strictEqual(wsChanged.length, 1);
   assert.strictEqual(wsChanged[0], 'ws-B');
   assert.strictEqual(gBrowser.selectedTab, tab2);
+});
+
+test('Spotlight Tab Search never changes workspace for essential tabs and activates them properly', () => {
+  const wsChanged = [];
+  const eventsDispatched = [];
+  const essentialTab = {
+    label: 'WhatsApp Essential',
+    linkedPanel: 'p-ess',
+    isConnected: true,
+    hasAttribute: (a) => a === 'zen-essential',
+    getAttribute: (a) => (a === 'zen-essential' ? 'true' : a === 'zen-workspace-id' ? 'ws-B' : null),
+    dispatchEvent(ev) { eventsDispatched.push(ev.type); },
+  };
+
+  const { win, gBrowser } = load({}, [essentialTab]);
+  win.gZenWorkspaces = {
+    activeWorkspace: { id: 'ws-A' },
+    changeWorkspace(id) { wsChanged.push(id); },
+  };
+
+  const search = win.__zenHeliarcSearch;
+  search.open();
+  search.setSelectedIndex(0);
+  search.executeSelected();
+
+  // Must not touch workspace despite tab having 'ws-B'
+  assert.strictEqual(wsChanged.length, 0);
+  assert.strictEqual(gBrowser.selectedTab, essentialTab);
+  assert.ok(eventsDispatched.includes('mousedown'));
 });
 
 test('Spotlight Tab Search toggles via Ctrl+Space shortcut keydown and closes on Escape', () => {

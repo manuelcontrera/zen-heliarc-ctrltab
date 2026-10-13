@@ -70,7 +70,6 @@ Configurable directly from Zen Settings → **Sine Mods** → **Heliarc Ctrl+Tab
 - `Type query`: Filters open tabs by title, URL, or Zen workspace name.
 - `Arrow Down` / `Arrow Up`: Select item in results list.
 - `Enter`: Switch to the selected tab.
-- `Delete` / `Ctrl + W` (or click `✕` button): Close the highlighted open tab.
 - `Escape` or `Click outside`: Close Spotlight Search.
 
 ---

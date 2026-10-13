@@ -431,9 +431,9 @@
   const searchHeader = el('div');
   searchHeader.id = 'heliarc-search-header';
 
-  const searchIcon = el('div');
+  const searchIcon = el('img');
   searchIcon.id = 'heliarc-search-icon';
-  searchIcon.innerHTML = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>';
+  searchIcon.src = 'chrome://global/skin/icons/search-glass.svg';
 
   const searchInput = el('input');
   searchInput.id = 'heliarc-search-input';
@@ -467,9 +467,22 @@
   let searchItems = [];
   let searchSelectedIndex = 0;
 
+  const isEssentialTab = (tab) => {
+    if (!tab) return false;
+    return !!(
+      tab.hasAttribute?.('zen-essential') ||
+      tab.getAttribute?.('zen-essential') === 'true' ||
+      tab.hasAttribute?.('zen-pin-essential') ||
+      tab.closest?.('#zen-essentials-container') ||
+      tab.parentNode?.id === 'zen-essentials-container' ||
+      tab.pinned
+    );
+  };
+
   // Resolve Zen Workspace name for a given tab
   const getTabWorkspaceName = (tab) => {
     if (!tab) return '';
+    if (isEssentialTab(tab)) return 'Essential';
     const directName = tab.getAttribute?.('zen-workspace-name');
     if (directName) return directName;
     const wsId = tab.getAttribute?.('zen-workspace-id');
@@ -531,19 +544,23 @@
 
     try { win.focus?.(); } catch {}
 
-    const tabWsId = tab.getAttribute?.('zen-workspace-id');
-    const activeWs = win.gZenWorkspaces?.activeWorkspace;
-    const currentWsId =
-      (typeof activeWs === 'object' && activeWs?.id) ||
-      (typeof activeWs === 'string' && activeWs) ||
-      win.gZenWorkspaces?.activeWorkspaceId ||
-      win.gZenWorkspaces?.currentWorkspaceId ||
-      win.gBrowser?.selectedTab?.getAttribute?.('zen-workspace-id');
+    const isEssential = isEssentialTab(tab);
 
-    // Only change workspace if tab belongs to a DIFFERENT workspace
-    if (tabWsId && currentWsId && tabWsId !== currentWsId && win.gZenWorkspaces) {
-      if (typeof win.gZenWorkspaces.changeWorkspace === 'function') {
-        try { win.gZenWorkspaces.changeWorkspace(tabWsId); } catch {}
+    // Only change workspace if NOT an essential tab and tab belongs to a DIFFERENT workspace
+    if (!isEssential) {
+      const tabWsId = tab.getAttribute?.('zen-workspace-id');
+      const activeWs = win.gZenWorkspaces?.activeWorkspace;
+      const currentWsId =
+        (typeof activeWs === 'object' && activeWs?.id) ||
+        (typeof activeWs === 'string' && activeWs) ||
+        win.gZenWorkspaces?.activeWorkspaceId ||
+        win.gZenWorkspaces?.currentWorkspaceId ||
+        win.gBrowser?.selectedTab?.getAttribute?.('zen-workspace-id');
+
+      if (tabWsId && currentWsId && tabWsId !== currentWsId && win.gZenWorkspaces) {
+        if (typeof win.gZenWorkspaces.changeWorkspace === 'function') {
+          try { win.gZenWorkspaces.changeWorkspace(tabWsId); } catch {}
+        }
       }
     }
 
@@ -558,7 +575,14 @@
       } catch {}
     }
 
-    // Trigger tab click to run Zen's native tab-activation & wake-up hooks
+    // Trigger native mousedown & click events so Zen's tab activation (especially essentials) runs
+    try {
+      if (typeof win.MouseEvent === 'function') {
+        tab.dispatchEvent(new win.MouseEvent('mousedown', { bubbles: true, cancelable: true, view: win, button: 0 }));
+        tab.dispatchEvent(new win.MouseEvent('mouseup', { bubbles: true, cancelable: true, view: win, button: 0 }));
+      }
+    } catch {}
+
     try {
       if (typeof tab.click === 'function') {
         tab.click();
@@ -569,15 +593,6 @@
       const browser = tab.linkedBrowser || win.gBrowser?.selectedBrowser;
       browser?.focus?.();
     } catch {}
-  };
-
-  const closeSelectedTab = (item) => {
-    if (!item?.tab) return;
-    const win = item.win || item.tab.ownerGlobal || window;
-    if (win.gBrowser && typeof win.gBrowser.removeTab === 'function') {
-      win.gBrowser.removeTab(item.tab);
-    }
-    updateSearchResults(searchInput.value || '');
   };
 
   const executeSearchItem = (item) => {
@@ -692,15 +707,6 @@
         li.append(badge);
       }
 
-      const closeBtn = el('button', 'heliarc-search-close-tab');
-      closeBtn.setAttribute('title', 'Cerrar pestaña');
-      closeBtn.textContent = '✕';
-      closeBtn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        closeSelectedTab(item);
-      });
-      li.append(closeBtn);
-
       li.addEventListener('click', () => {
         executeSearchItem(item);
       });
@@ -781,14 +787,6 @@
       e.preventDefault();
       e.stopPropagation();
       closeSearch();
-    } else if (e.key === 'Delete' || (e.ctrlKey && (e.key === 'w' || e.key === 'W'))) {
-      if (searchSelectedIndex >= 0 && searchSelectedIndex < searchItems.length) {
-        const item = searchItems[searchSelectedIndex];
-        if (item && item.type === 'tab') {
-          e.preventDefault();
-          closeSelectedTab(item);
-        }
-      }
     }
   });
 

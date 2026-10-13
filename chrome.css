@@ -378,9 +378,9 @@
   width: 680px !important;
   max-width: 92vw !important;
   box-sizing: border-box !important;
-  background: rgba(20, 20, 26, 0.76) !important;
-  backdrop-filter: blur(40px) saturate(190%) contrast(105%) !important;
-  -webkit-backdrop-filter: blur(40px) saturate(190%) contrast(105%) !important;
+  background: rgba(22, 22, 22, 0.82) !important;
+  backdrop-filter: blur(40px) !important;
+  -webkit-backdrop-filter: blur(40px) !important;
   border-radius: 18px !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
   box-shadow: 0 32px 80px rgba(0, 0, 0, 0.65),
@@ -410,10 +410,13 @@
 }
 
 #heliarc-search-icon {
-  width: 19px !important;
-  height: 19px !important;
+  width: 17px !important;
+  height: 17px !important;
   flex-shrink: 0 !important;
-  color: var(--heliarc-accent, var(--zen-primary-color, #0a84ff)) !important;
+  display: block !important;
+  object-fit: contain !important;
+  filter: brightness(0) invert(1) !important;
+  opacity: 0.85 !important;
 }
 
 #heliarc-search-input {
@@ -485,8 +488,8 @@
 .heliarc-search-item:hover,
 .heliarc-search-item[selected],
 .heliarc-search-item.selected {
-  background: rgba(255, 255, 255, 0.10) !important;
-  outline: 1.5px solid color-mix(in srgb, var(--heliarc-accent, var(--zen-primary-color, #0a84ff)) 45%, rgba(255, 255, 255, 0.12)) !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  outline: 1.5px solid rgba(255, 255, 255, 0.22) !important;
 }
 
 .heliarc-search-item-icon {
@@ -564,43 +567,17 @@
 }
 
 .heliarc-search-badge.current {
-  background: color-mix(in srgb, var(--heliarc-accent, var(--zen-primary-color, #0a84ff)) 18%, transparent) !important;
-  color: var(--heliarc-accent, var(--zen-primary-color, #0a84ff)) !important;
-  border-color: color-mix(in srgb, var(--heliarc-accent, var(--zen-primary-color, #0a84ff)) 30%, transparent) !important;
+  background: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25) !important;
 }
 
 .heliarc-search-badge.workspace {
-  background: rgba(147, 197, 253, 0.12) !important;
-  color: #93c5fd !important;
-  border-color: rgba(147, 197, 253, 0.22) !important;
-}
-
-.heliarc-search-close-tab {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 20px !important;
-  height: 20px !important;
-  border-radius: 4px !important;
-  color: rgba(255, 255, 255, 0.4) !important;
-  background: transparent !important;
-  border: none !important;
-  cursor: pointer !important;
-  opacity: 0 !important;
-  transition: opacity 0.1s ease, background 0.1s ease, color 0.1s ease !important;
-  flex-shrink: 0 !important;
-  padding: 0 !important;
-  margin-left: 6px !important;
-}
-
-.heliarc-search-item:hover .heliarc-search-close-tab,
-.heliarc-search-item.selected .heliarc-search-close-tab {
-  opacity: 1 !important;
-}
-
-.heliarc-search-close-tab:hover {
-  background: rgba(239, 68, 68, 0.25) !important;
-  color: #f87171 !important;
+  background: rgba(255, 255, 255, 0.10) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
 }
 
 #heliarc-search-empty {
