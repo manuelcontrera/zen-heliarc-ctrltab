@@ -86,6 +86,9 @@
     return false;
   };
 
+  // Forward declarations for search modal
+  let searchModal = null;
+
   // Sync settings with Firefox/Zen internal preferences
   const apply = () => {
     const enabled = pref('enabled', true);
@@ -103,8 +106,10 @@
     const accent = String(pref('accent', '')).trim();
     if (accent) {
       panel.style.setProperty('--heliarc-accent', accent);
+      if (searchModal) searchModal.style.setProperty('--heliarc-accent', accent);
     } else {
       panel.style.removeProperty('--heliarc-accent');
+      if (searchModal) searchModal.style.removeProperty('--heliarc-accent');
     }
   };
 
@@ -400,7 +405,7 @@
       if (pref('search-enabled', true)) {
         e.preventDefault();
         e.stopPropagation();
-        openNativeTabSearch();
+        openSearch();
       }
     }
   });
@@ -457,172 +462,477 @@
   panel.addEventListener('popuphidden', hideBackdrop);
 
   // =========================================================================
-  // Native Tab Search (Ctrl+Space) Integration for Zen Browser
-  // Redirects Ctrl+Space directly to Zen's native floating tab search (@tabs / %)
+  // Spotlight Tab & Web Search (SpotTab) Module
+  // Runs in browser chrome context, completely isolated from webpage CSS/extensions
   // =========================================================================
 
-  const getUrlbarShared = () => {
-    if (window.UrlbarShared) return window.UrlbarShared;
-    try {
-      if (typeof ChromeUtils?.importESModule === 'function') {
-        return ChromeUtils.importESModule('chrome://browser/content/urlbar/UrlbarShared.mjs').UrlbarShared;
-      }
-    } catch {}
-    try {
-      if (typeof ChromeUtils?.importESModule === 'function') {
-        return ChromeUtils.importESModule('resource:///modules/UrlbarShared.sys.mjs').UrlbarShared;
-      }
-    } catch {}
-    return null;
+  const searchOverlay = el('div', 'heliarc-search-overlay');
+  searchOverlay.id = 'heliarc-search-overlay';
+
+  searchModal = el('div');
+  searchModal.id = 'heliarc-search-modal';
+
+  const searchHeader = el('div');
+  searchHeader.id = 'heliarc-search-header';
+
+  const searchIcon = el('img');
+  searchIcon.id = 'heliarc-search-icon';
+  searchIcon.src = 'chrome://global/skin/icons/search-glass.svg';
+
+  const searchInput = el('input');
+  searchInput.id = 'heliarc-search-input';
+  searchInput.setAttribute('type', 'text');
+  searchInput.setAttribute('placeholder', 'Buscar pestañas abiertas...');
+  searchInput.setAttribute('spellcheck', 'false');
+  searchInput.setAttribute('autocomplete', 'off');
+
+  const searchBadge = el('span');
+  searchBadge.id = 'heliarc-search-shortcut-badge';
+  searchBadge.textContent = 'Esc para cerrar';
+
+  const searchList = el('ul');
+  searchList.id = 'heliarc-search-list';
+
+  const searchEmpty = el('div');
+  searchEmpty.id = 'heliarc-search-empty';
+  searchEmpty.textContent = 'No se encontraron pestañas abiertas';
+  searchEmpty.style.setProperty('display', 'none');
+
+  searchHeader.append(searchIcon, searchInput, searchBadge);
+  searchModal.append(searchHeader, searchList, searchEmpty);
+  searchOverlay.append(searchModal);
+
+  const mainWindow = document.getElementById('main-window') || document.documentElement;
+  if (mainWindow) {
+    mainWindow.append(searchOverlay);
+  }
+
+  let searchIsOpen = false;
+  let searchItems = [];
+  let searchSelectedIndex = 0;
+
+  const isEssentialTab = (tab) => {
+    if (!tab) return false;
+    return !!(
+      tab.hasAttribute?.('zen-essential') ||
+      tab.getAttribute?.('zen-essential') === 'true' ||
+      tab.hasAttribute?.('zen-pin-essential') ||
+      tab.hasAttribute?.('zen-essential-id') ||
+      tab.classList?.contains?.('zen-essential-tab') ||
+      tab.closest?.('#zen-essentials-container') ||
+      tab.parentNode?.id === 'zen-essentials-container'
+    );
   };
 
-  const closeNativeTabSearch = () => {
-    const bar = window.gURLBar;
-    if (!bar) return;
-
-    try {
-      if (typeof bar.handleRevert === 'function') {
-        bar.handleRevert();
-      }
-    } catch {}
-
-    try {
-      const targetBrowser = window.gBrowser?.selectedBrowser;
-      if (typeof bar.setSearchMode === 'function') {
-        bar.setSearchMode(null, targetBrowser);
-      } else {
-        bar.searchMode = null;
-      }
-    } catch {}
-
-    try {
-      if (bar.searchMode) {
-        bar.searchMode = null;
-      }
-    } catch {}
-
-    try {
-      if (bar.view && typeof bar.view.close === 'function') {
-        bar.view.close({ showFocusBorder: false });
-      }
-    } catch {}
-
-    try {
-      bar.blur?.();
-    } catch {}
-
-    try {
-      const browser = window.gBrowser?.selectedBrowser;
-      browser?.focus?.();
-    } catch {}
+  const isPinnedTab = (tab) => {
+    if (!tab) return false;
+    if (isEssentialTab(tab)) return false;
+    return !!(tab.pinned || tab.hasAttribute?.('pinned'));
   };
 
-  const openNativeTabSearch = () => {
-    if (!pref('search-enabled', true)) return;
+  // Resolve Zen Workspace name for a given tab
+  const getTabWorkspaceName = (tab) => {
+    if (!tab) return '';
+    if (isEssentialTab(tab)) return 'Essential';
+    const directName = tab.getAttribute?.('zen-workspace-name');
+    if (directName) return directName;
+    const wsId = tab.getAttribute?.('zen-workspace-id');
+    if (!wsId) return '';
+    try {
+      if (window.gZenWorkspaces) {
+        if (typeof window.gZenWorkspaces.getWorkspace === 'function') {
+          const ws = window.gZenWorkspaces.getWorkspace(wsId);
+          if (ws?.name) return ws.name;
+        }
+        if (Array.isArray(window.gZenWorkspaces.workspaces)) {
+          const ws = window.gZenWorkspaces.workspaces.find((w) => w.id === wsId);
+          if (ws?.name) return ws.name;
+        }
+      }
+    } catch {}
+    return '';
+  };
 
-    // Close Ctrl+Tab preview panel if currently visible
-    if (panel && typeof panel.hidePopup === 'function') {
-      try { panel.hidePopup(); } catch {}
+  // Collect all currently open tabs from the window
+  const collectOpenTabs = () => {
+    const tabs = [];
+    const currentWin = window;
+    const currentTab = currentWin.gBrowser?.selectedTab;
+
+    const rawTabs = currentWin.gBrowser?.tabs ? Array.from(currentWin.gBrowser.tabs) : [];
+    for (const tab of rawTabs) {
+      if (!tab || tab.closing || tab.isConnected === false) continue;
+      if (isBlankTab(tab)) continue;
+
+      const url = tab.linkedBrowser?.currentURI?.spec || tab.getAttribute?.('zen-url') || tab.getAttribute?.('url') || '';
+      const title = tab.label || tab.getAttribute?.('label') || 'Nueva pestaña';
+      const icon = tab.getAttribute?.('image') || tab.image || '';
+      const isEssential = isEssentialTab(tab);
+      const isPinned = isPinnedTab(tab);
+      const wsName = getTabWorkspaceName(tab);
+      const workspace = isEssential ? 'Essential' : wsName;
+      const isCurrent = tab === currentTab;
+
+      let badgeText = '';
+      let badgeType = '';
+
+      if (isEssential) {
+        badgeText = 'Essential';
+        badgeType = 'essential';
+      } else if (isPinned) {
+        badgeText = 'Pinned';
+        badgeType = 'pinned';
+      } else if (workspace) {
+        badgeText = workspace;
+        badgeType = 'workspace';
+      } else if (isCurrent) {
+        badgeText = 'Actual';
+        badgeType = 'current';
+      }
+
+      tabs.push({
+        type: 'tab',
+        tab,
+        title,
+        url,
+        icon,
+        workspace,
+        badgeText,
+        badgeType,
+        isEssential,
+        isPinned,
+        isCurrent,
+        win: currentWin,
+      });
     }
+    return tabs;
+  };
 
-    const bar = window.gURLBar;
-    if (!bar) return;
-
-    // Toggle: if urlbar is already focused and in tab search mode or open, close it cleanly
-    if (bar.focused && (bar.view?.isOpen || bar.searchMode || bar.value?.startsWith?.('%') || bar.value?.startsWith?.('@tab'))) {
-      closeNativeTabSearch();
+  const switchToTab = (item) => {
+    if (!item?.tab) {
+      closeSearch();
       return;
     }
 
-    try {
-      bar.focus?.();
-      bar.select?.();
-    } catch {}
+    const tab = item.tab;
+    const win = item.win || tab.ownerGlobal || window;
 
-    // Primary: Firefox/Zen native search("% ")
-    let didSearch = false;
-    try {
-      if (typeof bar.search === 'function') {
-        bar.search('% ');
-        didSearch = true;
+    closeSearch();
+
+    try { win.focus?.(); } catch {}
+
+    const isEssential = isEssentialTab(tab);
+
+    // Only change workspace if NOT an essential tab and tab belongs to a DIFFERENT workspace
+    if (!isEssential) {
+      const tabWsId = tab.getAttribute?.('zen-workspace-id');
+      const activeWs = win.gZenWorkspaces?.activeWorkspace;
+      const currentWsId =
+        (typeof activeWs === 'object' && activeWs?.id) ||
+        (typeof activeWs === 'string' && activeWs) ||
+        win.gZenWorkspaces?.activeWorkspaceId ||
+        win.gZenWorkspaces?.currentWorkspaceId ||
+        win.gBrowser?.selectedTab?.getAttribute?.('zen-workspace-id');
+
+      if (tabWsId && currentWsId && tabWsId !== currentWsId && win.gZenWorkspaces) {
+        if (typeof win.gZenWorkspaces.changeWorkspace === 'function') {
+          try { win.gZenWorkspaces.changeWorkspace(tabWsId); } catch {}
+        }
       }
-    } catch {}
+    }
 
-    // Fallback if search() didn't set searchMode or wasn't available
-    if (!didSearch || !bar.searchMode) {
+    if (win.gBrowser) {
       try {
-        const shared = getUrlbarShared();
-        const sourceTabs = shared?.RESULT_SOURCE?.TABS ?? 4;
-        const targetBrowser = window.gBrowser?.selectedBrowser;
-        const tabsMode = {
-          source: sourceTabs,
-          entry: 'shortcut',
-        };
-
-        if (typeof bar.setSearchMode === 'function') {
-          bar.setSearchMode(tabsMode, targetBrowser);
-        } else {
-          bar.searchMode = tabsMode;
-        }
-
-        if (bar.inputField) {
-          bar.inputField.value = '';
-          const evt = new (window.UIEvent || window.CustomEvent)('input', {
-            bubbles: true,
-            cancelable: false,
-            view: window,
-            detail: 0,
-          });
-          bar.inputField.dispatchEvent(evt);
-        }
-
-        if (typeof bar.startQuery === 'function') {
-          bar.startQuery({ searchString: '' });
+        win.gBrowser.selectedTab = tab;
+      } catch {}
+      try {
+        if (typeof win.gBrowser.warmupTab === 'function') {
+          win.gBrowser.warmupTab(tab);
         }
       } catch {}
     }
 
-    // Ensure view popup opens if it hasn't opened yet
+    // Trigger native mousedown & click events so Zen's tab activation (especially essentials) runs
     try {
-      if (bar.view && !bar.view.isOpen && typeof bar.view.open === 'function') {
-        bar.view.open();
+      if (typeof win.MouseEvent === 'function') {
+        tab.dispatchEvent(new win.MouseEvent('mousedown', { bubbles: true, cancelable: true, view: win, button: 0 }));
+        tab.dispatchEvent(new win.MouseEvent('mouseup', { bubbles: true, cancelable: true, view: win, button: 0 }));
+      }
+    } catch {}
+
+    try {
+      if (typeof tab.click === 'function') {
+        tab.click();
+      }
+    } catch {}
+
+    try {
+      const browser = tab.linkedBrowser || win.gBrowser?.selectedBrowser;
+      browser?.focus?.();
+    } catch {}
+  };
+
+  const executeSearchItem = (item) => {
+    if (!item) return;
+    if (item.type === 'tab') {
+      switchToTab(item);
+    }
+  };
+
+  const updateSearchResults = (query) => {
+    const trimmed = (query || '').trim().toLowerCase();
+    const allOpenTabs = collectOpenTabs();
+    const maxResults = pref('search-max-results', 8);
+    const filtered = [];
+
+    if (!trimmed) {
+      const recentList = getCleanTabList();
+      const seen = new Set();
+      for (const t of recentList) {
+        const match = allOpenTabs.find((item) => item.tab === t);
+        if (match && !seen.has(match.tab)) {
+          seen.add(match.tab);
+          filtered.push(match);
+        }
+        if (filtered.length >= maxResults) break;
+      }
+      if (filtered.length < maxResults) {
+        for (const item of allOpenTabs) {
+          if (!seen.has(item.tab)) {
+            seen.add(item.tab);
+            filtered.push(item);
+          }
+          if (filtered.length >= maxResults) break;
+        }
+      }
+    } else {
+      for (const item of allOpenTabs) {
+        const matchTitle = (item.title || '').toLowerCase().includes(trimmed);
+        const matchUrl = (item.url || '').toLowerCase().includes(trimmed);
+        const matchWs = (item.workspace || '').toLowerCase().includes(trimmed);
+        const matchBadge = (item.badgeText || '').toLowerCase().includes(trimmed);
+        const matchPinned = item.isPinned && ('pinned'.includes(trimmed) || 'fijada'.includes(trimmed) || 'fijadas'.includes(trimmed));
+        const matchEssential = item.isEssential && ('essential'.includes(trimmed) || 'esencial'.includes(trimmed) || 'esenciales'.includes(trimmed));
+        if (matchTitle || matchUrl || matchWs || matchBadge || matchPinned || matchEssential) {
+          filtered.push(item);
+        }
+        if (filtered.length >= maxResults) break;
+      }
+    }
+
+    searchItems = filtered.slice(0, maxResults);
+    if (searchItems.length > 0) {
+      if (!trimmed && searchItems.length > 1 && searchItems[0].isCurrent) {
+        searchSelectedIndex = 1;
+      } else {
+        searchSelectedIndex = 0;
+      }
+    } else {
+      searchSelectedIndex = -1;
+    }
+
+    renderSearchList();
+  };
+
+  const renderSearchList = () => {
+    if (typeof searchList.replaceChildren === 'function') {
+      searchList.replaceChildren();
+    } else {
+      while (searchList.firstChild) {
+        searchList.removeChild(searchList.firstChild);
+      }
+    }
+
+    if (searchItems.length === 0) {
+      searchEmpty.style.removeProperty('display');
+      return;
+    }
+    searchEmpty.style.setProperty('display', 'none');
+
+    searchItems.forEach((item, index) => {
+      const li = el('li', 'heliarc-search-item');
+      if (index === searchSelectedIndex) {
+        li.className = 'heliarc-search-item selected';
+        li.setAttribute('selected', '');
+      }
+
+      // Icon
+      const iconImg = el('img', 'heliarc-search-item-icon');
+      iconImg.src = item.icon || 'chrome://global/skin/icons/defaultFavicon.svg';
+      li.append(iconImg);
+
+      // Content
+      const content = el('div', 'heliarc-search-item-content');
+      const titleSpan = el('span', 'heliarc-search-item-title');
+      titleSpan.textContent = item.title;
+      content.append(titleSpan);
+
+      if (item.url) {
+        const sepSpan = el('span', 'heliarc-search-item-sep');
+        sepSpan.textContent = '—';
+        const urlSpan = el('span', 'heliarc-search-item-url');
+        urlSpan.textContent = item.url.replace(/^https?:\/\//, '');
+        content.append(sepSpan, urlSpan);
+      }
+      li.append(content);
+
+      // Badges
+      if (item.isPinned && item.workspace && item.workspace !== 'Pinned' && item.workspace !== 'Essential') {
+        const wsBadge = el('span', 'heliarc-search-badge workspace');
+        wsBadge.textContent = item.workspace;
+        li.append(wsBadge);
+      }
+      if (item.badgeText) {
+        const badge = el('span', `heliarc-search-badge ${item.badgeType}`);
+        badge.textContent = item.badgeText;
+        li.append(badge);
+      }
+
+      li.addEventListener('click', () => {
+        executeSearchItem(item);
+      });
+
+      searchList.append(li);
+    });
+  };
+
+  const openSearch = () => {
+    if (searchIsOpen) return;
+    if (!pref('search-enabled', true)) return;
+
+    if (panel && typeof panel.hidePopup === 'function') {
+      try { panel.hidePopup(); } catch {}
+    }
+
+    searchIsOpen = true;
+    searchOverlay.setAttribute('active', '');
+    searchInput.value = '';
+    updateSearchResults('');
+
+    try { searchInput.focus(); } catch {}
+  };
+
+  const closeSearch = () => {
+    if (!searchIsOpen) return;
+    searchIsOpen = false;
+    searchOverlay.removeAttribute('active');
+    searchInput.value = '';
+    try {
+      if (window.gBrowser?.selectedBrowser) {
+        window.gBrowser.selectedBrowser.focus();
       }
     } catch {}
   };
 
-  const isCtrlSpace = (e) => {
+  const toggleSearch = () => {
+    if (searchIsOpen) {
+      closeSearch();
+    } else {
+      openSearch();
+    }
+  };
+
+  searchOverlay.addEventListener('click', (e) => {
+    if (e.target === searchOverlay) {
+      closeSearch();
+    }
+  });
+
+  searchInput.addEventListener('input', () => {
+    updateSearchResults(searchInput.value || '');
+  });
+
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (searchItems.length > 0) {
+        searchSelectedIndex = (searchSelectedIndex + 1) % searchItems.length;
+        renderSearchList();
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (searchItems.length > 0) {
+        searchSelectedIndex = (searchSelectedIndex - 1 + searchItems.length) % searchItems.length;
+        renderSearchList();
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      const targetIndex = (searchSelectedIndex >= 0 && searchSelectedIndex < searchItems.length)
+        ? searchSelectedIndex
+        : (searchItems.length > 0 ? 0 : -1);
+      if (targetIndex >= 0) {
+        executeSearchItem(searchItems[targetIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      closeSearch();
+    }
+  });
+
+  const matchesSearchShortcut = (e) => {
+    const configured = pref('search-shortcut', 'Ctrl+Space');
     const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+
+    if (configured === 'Ctrl+Space') {
+      return (e.code === 'Space' || e.key === ' ') && isCtrlOrMeta && !e.altKey && !e.shiftKey;
+    }
+    if (configured === 'Ctrl+Shift+A') {
+      return (e.code === 'KeyA' || e.key === 'a' || e.key === 'A') && isCtrlOrMeta && e.shiftKey && !e.altKey;
+    }
+    if (configured === 'Alt+Space') {
+      return (e.code === 'Space' || e.key === ' ') && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;
+    }
+    if (configured === 'Ctrl+Alt+T') {
+      return (e.code === 'KeyT' || e.key === 't' || e.key === 'T') && isCtrlOrMeta && e.altKey && !e.shiftKey;
+    }
     return (e.code === 'Space' || e.key === ' ') && isCtrlOrMeta && !e.altKey && !e.shiftKey;
   };
 
   window.addEventListener('keydown', (e) => {
-    if (isCtrlSpace(e)) {
+    if (matchesSearchShortcut(e)) {
       if (!pref('search-enabled', true)) return;
       e.preventDefault();
       e.stopPropagation();
-      openNativeTabSearch();
+      toggleSearch();
       return;
     }
-
-    // Esc key cleanly exits the native search bar, clears search mode, and returns focus to page
-    if (e.key === 'Escape') {
-      const bar = window.gURLBar;
-      if (bar && (bar.focused || bar.searchMode || bar.view?.isOpen)) {
-        e.preventDefault();
-        e.stopPropagation();
-        closeNativeTabSearch();
-      }
+    if (searchIsOpen && e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      closeSearch();
+      return;
     }
   }, true);
 
-  // Expose control API for tests and internal control
+  // Expose Spotlight Search API for tests and internal control
   window.__zenHeliarcSearch = {
-    open: openNativeTabSearch,
-    close: closeNativeTabSearch,
-    toggle: openNativeTabSearch,
-    isOpen: () => {
-      const bar = window.gURLBar;
-      return !!(bar && (bar.focused || bar.searchMode || bar.view?.isOpen));
+    open: openSearch,
+    close: closeSearch,
+    toggle: toggleSearch,
+    isOpen: () => searchIsOpen,
+    getItems: () => searchItems,
+    getSelectedIndex: () => searchSelectedIndex,
+    setSelectedIndex: (idx) => {
+      searchSelectedIndex = idx;
+      renderSearchList();
+    },
+    updateQuery: (q) => {
+      searchInput.value = q;
+      updateSearchResults(q);
+    },
+    executeSelected: () => {
+      if (searchSelectedIndex >= 0 && searchSelectedIndex < searchItems.length) {
+        executeSearchItem(searchItems[searchSelectedIndex]);
+      }
+    },
+    elements: {
+      overlay: searchOverlay,
+      modal: searchModal,
+      input: searchInput,
+      list: searchList,
+      empty: searchEmpty,
     },
   };
 
@@ -633,5 +943,6 @@
     prefs.removeObserver(P, observer);
     hideBackdrop();
     backdrop?.remove();
+    searchOverlay?.remove();
   }, { once: true });
 })();

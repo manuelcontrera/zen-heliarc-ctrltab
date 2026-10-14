@@ -1,8 +1,8 @@
 {
   "id": "zen-heliarc-ctrltab",
-  "name": "Heliarc Ctrl+Tab & Native Tab Search",
-  "description": "Authentic Arc/Heliarc style Ctrl+Tab preview strip and native floating Tab Search shortcut (Ctrl+Space) for Zen Browser. Liquid Glass HUD, live previews, instant tab switching.",
-  "version": "1.2.0",
+  "name": "Heliarc Ctrl+Tab & Spotlight Search",
+  "description": "Authentic Arc/Heliarc style Ctrl+Tab preview strip and floating Spotlight tab search bar (SpotTab) for Zen Browser. Liquid Glass HUD, live previews, instant tab switching across workspaces.",
+  "version": "1.1.1",
   "author": "Manuel Contreras / Zen Community",
   "homepage": "https://github.com/manuelcontrera/zen-heliarc-ctrltab",
   "readme": "https://raw.githubusercontent.com/manuelcontrera/zen-heliarc-ctrltab/main/README.md",
@@ -11,6 +11,7 @@
     "arc",
     "heliarc",
     "switcher",
+    "spotlight",
     "search",
     "JS"
   ],
@@ -20,8 +21,8 @@
   "preferences": "preferences.json",
   "scripts": {
     "JS/heliarc-ctrltab.uc.js": {
-      "name": "Heliarc Ctrl+Tab & Native Tab Search",
-      "description": "Arc-style Ctrl+Tab switcher with live previews and native floating Tab Search (Ctrl+Space).",
+      "name": "Heliarc Ctrl+Tab & Spotlight Search",
+      "description": "Arc-style Ctrl+Tab switcher with live previews, and floating Spotlight tab search bar.",
       "include": [
         "chrome://browser/content/browser.xhtml"
       ]

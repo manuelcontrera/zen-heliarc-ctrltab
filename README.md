@@ -1,18 +1,17 @@
-# Heliarc Ctrl+Tab & Native Tab Search for Zen Browser
+# Heliarc Ctrl+Tab & Spotlight Search for Zen Browser
 
-An authentic **Arc Browser / Heliarc** tab switcher and **native floating tab search shortcut** mod for [Zen Browser](https://zen-browser.app).
+An authentic **Arc Browser / Heliarc** tab switcher and **Spotlight command palette** mod for [Zen Browser](https://zen-browser.app).
 
 - Holding `Ctrl+Tab` brings up a floating **Liquid Glass HUD** displaying a single horizontal strip of your most recent tabs with live screenshots and floating frosted title pills.
-- Pressing `Ctrl+Space` (or Space while inside Ctrl+Tab) opens Zen Browser's native centered floating search bar pre-configured in **Tabs mode** (`@tabs` / `%`) to search and jump to tabs across Zen Workspaces.
-- Pressing `Escape` or pressing `Ctrl+Space` again cleanly closes the search bar and returns focus to the active webpage.
+- Pressing `Ctrl+Space` (or Space while inside Ctrl+Tab) opens a centered **Spotlight Tab Search (SpotTab)** bar to search and jump to tabs across Zen Workspaces with backdrop glass blur.
 
 ---
 
 ## ✨ Features
 
 - **Single-Row Arc Strip:** Clean, centered horizontal row of your most recently used (MRU) tabs.
-- **Native Floating Tab Search (`Ctrl+Space`):** Seamless integration with Zen's native address bar in tab search mode (`@tabs` / `%`). Instant and ultra-lightweight.
-- **Zen Workspaces Integration:** Filter and jump directly to tabs across any Zen Workspace. Zen switches workspace automatically when a tab is selected.
+- **Spotlight Tab Search (SpotTab):** Centered floating search modal running directly in Zen's chrome UI layer with Liquid Glass backdrop effect behind the modal—without blurring or darkening the rest of the web page.
+- **Zen Workspaces Integration:** Filter and jump directly to tabs across any Zen Workspace. Shows workspace badges and switches workspace automatically.
 - **Full-Bleed Visual Previews:** Live page screenshots scaled smoothly to fill each rounded preview card.
 - **Floating Frosted Title Pills:** Glass capsule in the top-left corner of each card displaying the favicon and title with backdrop blur.
 - **Luminous Focus Ring:** Continuous focus outline with an outer 3px gap, soft glow, and subtle scale effect matching your Zen theme's accent color (`--zen-primary-color`).
@@ -39,7 +38,7 @@ An authentic **Arc Browser / Heliarc** tab switcher and **native floating tab se
 
 ## ⚙️ Settings
 
-Configurable directly from Zen Settings → **Sine Mods** → **Heliarc Ctrl+Tab & Native Tab Search**:
+Configurable directly from Zen Settings → **Sine Mods** → **Heliarc Ctrl+Tab & Spotlight Search**:
 
 | Setting | Description | Default |
 | :--- | :--- | :--- |
@@ -49,7 +48,9 @@ Configurable directly from Zen Settings → **Sine Mods** → **Heliarc Ctrl+Tab
 | **Delay before HUD** | Delay before the visual panel pops up (`0ms`, `100ms`, `200ms`, `300ms`). Quick Ctrl+Tab flips tabs immediately. | `200ms` |
 | **Show unloaded tabs** | Whether to include hibernated/unloaded tabs in the switcher strip. | `false` |
 | **Custom focus ring color** | Hex or CSS color string. Leave empty to use your live Zen theme accent. | *(Zen Accent)* |
-| **Enable Native Tab Search** | Toggle the `Ctrl+Space` shortcut for Zen native tab search (`@tabs`). | `true` |
+| **Enable Spotlight Search** | Toggle the floating Spotlight tab search bar. | `true` |
+| **Spotlight shortcut** | Choose shortcut (`Ctrl+Space`, `Ctrl+Shift+A`, `Alt+Space`, `Ctrl+Alt+T`). | `Ctrl+Space` |
+| **Max search results** | Maximum search results in Spotlight list (6, 8, 10, 12). | `8 results` |
 
 ---
 
@@ -59,17 +60,17 @@ Configurable directly from Zen Settings → **Sine Mods** → **Heliarc Ctrl+Tab
 - `Ctrl + Tab`: Advance to the next most recent tab.
 - `Ctrl + Shift + Tab`: Move to the previous tab.
 - `Arrow Right` / `Arrow Left`: Cycle through tabs horizontally (with automatic wrap-around).
-- `Space`: Transition directly into Zen's native tab search.
+- `Space`: Transition directly into Spotlight Tab Search.
 - `Release Ctrl`: Switch to the highlighted tab (in hold mode).
 - `Escape` or `Click outside HUD`: Close without switching tabs.
 - `Click on any card`: Instantly switch to that tab.
 
-### Native Tab Search (`Ctrl + Space`)
-- `Ctrl + Space`: Open or close Zen's native floating tab search (`@tabs` mode).
-- `Type query`: Filters open tabs natively by title or URL.
-- `Arrow Down` / `Arrow Up`: Select item in results.
-- `Enter`: Switch to the selected tab (Zen switches to that workspace automatically).
-- `Escape`: Cleanly exit the search bar and restore focus to your webpage.
+### Spotlight Search (`Ctrl + Space`)
+- `Ctrl + Space`: Open or close Spotlight Search from any page or browser screen.
+- `Type query`: Filters open tabs by title, URL, or Zen workspace name.
+- `Arrow Down` / `Arrow Up`: Select item in results list.
+- `Enter`: Switch to the selected tab.
+- `Escape` or `Click outside`: Close Spotlight Search.
 
 ---
 

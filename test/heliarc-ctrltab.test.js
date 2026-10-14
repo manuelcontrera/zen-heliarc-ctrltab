@@ -134,41 +134,10 @@ function load(prefValues = {}, customTabs = []) {
     },
   };
 
-  const mockURLBar = {
-    focused: false,
-    searchMode: null,
-    query: '',
-    view: {
-      isOpen: false,
-      close() { this.isOpen = false; },
-      open() { this.isOpen = true; },
-    },
-    focus() { this.focused = true; },
-    blur() { this.focused = false; },
-    handleRevert() {
-      this.searchMode = null;
-      this.query = '';
-    },
-    setSearchMode(mode, targetBrowser) {
-      this.searchMode = mode;
-      if (mode) this.view.isOpen = true;
-      if (!mode) this.view.isOpen = false;
-    },
-    search(query) {
-      this.query = query;
-      this.focused = true;
-      this.searchMode = { source: 4, entry: 'shortcut' };
-      this.view.isOpen = true;
-    },
-  };
-
   const mockBrowser = {
     warmupTab() {},
     tabs: customTabs,
     selectedTab: customTabs[0] || null,
-    selectedBrowser: {
-      focus() { calls.push('browserFocused'); },
-    },
     removeTab(t) {
       const idx = this.tabs.indexOf(t);
       if (idx >= 0) this.tabs.splice(idx, 1);
@@ -183,12 +152,6 @@ function load(prefValues = {}, customTabs = []) {
     listeners: {},
     addEventListener(t, f) { (this.listeners[t] ||= []).push(f); },
     gBrowser: mockBrowser,
-    gURLBar: mockURLBar,
-    UrlbarShared: {
-      RESULT_SOURCE: {
-        TABS: 4,
-      },
-    },
     MouseEvent: globalThis.MouseEvent || function (t) { this.type = t; },
   };
 
@@ -199,9 +162,6 @@ function load(prefValues = {}, customTabs = []) {
 
   env = { document: doc };
 
-  // Re-read file to pick up latest code changes in test runs
-  const currentCode = fs.readFileSync(path.join(__dirname, '../JS/heliarc-ctrltab.uc.js'), 'utf8');
-
   new Function(
     'window',
     'document',
@@ -210,10 +170,10 @@ function load(prefValues = {}, customTabs = []) {
     'screen',
     'gBrowser',
     'ShortcutUtils',
-    currentCode
+    code
   )(win, doc, Services, native, {}, mockBrowser, ShortcutUtils);
 
-  return { store, panel, list, showAll, native, win, calls, made, gBrowser: mockBrowser, gURLBar: mockURLBar };
+  return { store, panel, list, showAll, native, win, calls, made, gBrowser: mockBrowser };
 }
 
 const ctrlUp = {
@@ -408,21 +368,176 @@ test('when show-unloaded is enabled, unloaded tabs are included in tabList', () 
   assert.strictEqual(list[1], pendingTab);
 });
 
-test('Native Tab Search initializes API and exposes open, close, toggle, and isOpen', () => {
-  const { win } = load();
+test('Spotlight Tab Search initializes API and attaches overlay to document', () => {
+  const { win, doc } = load();
   assert.ok(win.__zenHeliarcSearch);
   assert.strictEqual(typeof win.__zenHeliarcSearch.open, 'function');
   assert.strictEqual(typeof win.__zenHeliarcSearch.close, 'function');
   assert.strictEqual(typeof win.__zenHeliarcSearch.toggle, 'function');
   assert.strictEqual(win.__zenHeliarcSearch.isOpen(), false);
+
+  const overlay = win.__zenHeliarcSearch.elements.overlay;
+  assert.ok(overlay);
+  assert.strictEqual(overlay.id, 'heliarc-search-overlay');
 });
 
-test('Ctrl+Space shortcut triggers Native Tab Search in gURLBar with RESULT_SOURCE.TABS', () => {
-  const { win, gURLBar } = load();
+test('Spotlight Tab Search opens, marks overlay active, and lists open tabs', () => {
+  const tab1 = { label: 'GitHub - Repository', linkedPanel: 'p1', isConnected: true, getAttribute: () => null };
+  const tab2 = { label: 'YouTube - Video', linkedPanel: 'p2', isConnected: true, getAttribute: () => null };
+
+  const { win } = load({}, [tab1, tab2]);
+  const search = win.__zenHeliarcSearch;
+
+  search.open();
+  assert.strictEqual(search.isOpen(), true);
+  assert.ok(search.elements.overlay.hasAttribute('active'));
+
+  const items = search.getItems();
+  assert.strictEqual(items.length, 2);
+  assert.strictEqual(items[0].title, 'GitHub - Repository');
+  assert.strictEqual(items[1].title, 'YouTube - Video');
+
+  search.close();
+  assert.strictEqual(search.isOpen(), false);
+  assert.strictEqual(search.elements.overlay.hasAttribute('active'), false);
+});
+
+test('Spotlight Tab Search filters tabs by title and workspace', () => {
+  const tab1 = {
+    label: 'GitHub PR Review',
+    linkedPanel: 'p1',
+    isConnected: true,
+    getAttribute: (attr) => (attr === 'zen-workspace-name' ? 'Development' : null),
+  };
+  const tab2 = {
+    label: 'Figma Dashboard',
+    linkedPanel: 'p2',
+    isConnected: true,
+    getAttribute: (attr) => (attr === 'zen-workspace-name' ? 'Design' : null),
+  };
+
+  const { win } = load({}, [tab1, tab2]);
+  const search = win.__zenHeliarcSearch;
+
+  search.open();
+  search.updateQuery('figma');
+
+  const items = search.getItems();
+  assert.strictEqual(items[0].title, 'Figma Dashboard');
+  assert.strictEqual(items[0].workspace, 'Design');
+
+  search.updateQuery('Development');
+  const itemsDev = search.getItems();
+  assert.strictEqual(itemsDev[0].title, 'GitHub PR Review');
+});
+
+test('Spotlight Tab Search only searches open tabs and does not offer web or url search', () => {
+  const { win } = load({}, []);
+  const search = win.__zenHeliarcSearch;
+
+  search.open();
+  search.updateQuery('google.com');
+
+  const items = search.getItems();
+  assert.strictEqual(items.length, 0);
+  assert.strictEqual(search.elements.empty.style.vars['display'], undefined);
+
+  const hasFooter = search.elements.modal.children.some((c) => c.id === 'heliarc-search-footer');
+  assert.strictEqual(hasFooter, false);
+});
+
+
+test('Spotlight Tab Search switches selected tab on execution and closes modal', () => {
+  const tab1 = { label: 'Tab 1', linkedPanel: 'p1', isConnected: true, getAttribute: () => null };
+  const tab2 = { label: 'Tab 2', linkedPanel: 'p2', isConnected: true, getAttribute: () => null };
+
+  const { win, gBrowser } = load({}, [tab1, tab2]);
+  const search = win.__zenHeliarcSearch;
+
+  search.open();
+  search.setSelectedIndex(1);
+  search.executeSelected();
+
+  assert.strictEqual(search.isOpen(), false);
+  assert.strictEqual(gBrowser.selectedTab, tab2);
+});
+
+test('Spotlight Tab Search only calls changeWorkspace when tab belongs to different workspace', () => {
+  const wsChanged = [];
+  const tab1 = {
+    label: 'Tab 1',
+    linkedPanel: 'p1',
+    isConnected: true,
+    getAttribute: (attr) => (attr === 'zen-workspace-id' ? 'ws-A' : null),
+  };
+  const tab2 = {
+    label: 'Tab 2',
+    linkedPanel: 'p2',
+    isConnected: true,
+    getAttribute: (attr) => (attr === 'zen-workspace-id' ? 'ws-B' : null),
+  };
+
+  const { win, gBrowser } = load({}, [tab1, tab2]);
+  win.gZenWorkspaces = {
+    activeWorkspace: { id: 'ws-A' },
+    changeWorkspace(id) { wsChanged.push(id); },
+  };
+
+  const search = win.__zenHeliarcSearch;
+
+  // Switching to tab1 (same workspace 'ws-A'): changeWorkspace should NOT be called
+  search.open();
+  search.setSelectedIndex(0);
+  search.executeSelected();
+  assert.strictEqual(wsChanged.length, 0);
+  assert.strictEqual(gBrowser.selectedTab, tab1);
+
+  // Switching to tab2 (different workspace 'ws-B'): changeWorkspace should be called with 'ws-B'
+  search.open();
+  search.setSelectedIndex(1);
+  search.executeSelected();
+  assert.strictEqual(wsChanged.length, 1);
+  assert.strictEqual(wsChanged[0], 'ws-B');
+  assert.strictEqual(gBrowser.selectedTab, tab2);
+});
+
+test('Spotlight Tab Search never changes workspace for essential tabs and activates them properly', () => {
+  const wsChanged = [];
+  const eventsDispatched = [];
+  const essentialTab = {
+    label: 'WhatsApp Essential',
+    linkedPanel: 'p-ess',
+    isConnected: true,
+    hasAttribute: (a) => a === 'zen-essential',
+    getAttribute: (a) => (a === 'zen-essential' ? 'true' : a === 'zen-workspace-id' ? 'ws-B' : null),
+    dispatchEvent(ev) { eventsDispatched.push(ev.type); },
+  };
+
+  const { win, gBrowser } = load({}, [essentialTab]);
+  win.gZenWorkspaces = {
+    activeWorkspace: { id: 'ws-A' },
+    changeWorkspace(id) { wsChanged.push(id); },
+  };
+
+  const search = win.__zenHeliarcSearch;
+  search.open();
+  search.setSelectedIndex(0);
+  search.executeSelected();
+
+  // Must not touch workspace despite tab having 'ws-B'
+  assert.strictEqual(wsChanged.length, 0);
+  assert.strictEqual(gBrowser.selectedTab, essentialTab);
+  assert.ok(eventsDispatched.includes('mousedown'));
+});
+
+test('Spotlight Tab Search toggles via Ctrl+Space shortcut keydown and closes on Escape', () => {
+  const { win } = load();
+  const search = win.__zenHeliarcSearch;
 
   const keydownListeners = win.listeners['keydown'] || [];
   assert.ok(keydownListeners.length > 0);
 
+  // Trigger Ctrl+Space shortcut
   const ctrlSpaceEvent = {
     code: 'Space',
     key: ' ',
@@ -437,92 +552,23 @@ test('Ctrl+Space shortcut triggers Native Tab Search in gURLBar with RESULT_SOUR
   for (const listener of keydownListeners) {
     listener(ctrlSpaceEvent);
   }
+  assert.strictEqual(search.isOpen(), true);
 
-  assert.strictEqual(gURLBar.focused, true);
-  assert.ok(gURLBar.searchMode);
-  assert.strictEqual(gURLBar.searchMode.source, 4);
-  assert.strictEqual(gURLBar.view.isOpen, true);
-  assert.strictEqual(win.__zenHeliarcSearch.isOpen(), true);
-});
-
-test('Toggle behavior: pressing Ctrl+Space again when gURLBar is active closes and blurs it', () => {
-  const { win, gURLBar, calls } = load();
-
-  const keydownListeners = win.listeners['keydown'] || [];
-  const ctrlSpaceEvent = {
-    code: 'Space',
-    key: ' ',
-    ctrlKey: true,
-    altKey: false,
-    shiftKey: false,
-    metaKey: false,
-    preventDefault() {},
-    stopPropagation() {},
-  };
-
-  // First press: opens native search
-  for (const listener of keydownListeners) {
-    listener(ctrlSpaceEvent);
-  }
-  assert.strictEqual(gURLBar.focused, true);
-  assert.strictEqual(gURLBar.view.isOpen, true);
-
-  // Second press: toggles closed
-  for (const listener of keydownListeners) {
-    listener(ctrlSpaceEvent);
-  }
-  assert.strictEqual(gURLBar.focused, false);
-  assert.strictEqual(gURLBar.searchMode, null);
-  assert.strictEqual(gURLBar.view.isOpen, false);
-  assert.ok(calls.includes('browserFocused'));
-  assert.strictEqual(win.__zenHeliarcSearch.isOpen(), false);
-});
-
-test('Escape keydown cleanly closes Native Tab Search and restores focus to webpage', () => {
-  const { win, gURLBar, calls } = load();
-
-  const keydownListeners = win.listeners['keydown'] || [];
-  const ctrlSpaceEvent = {
-    code: 'Space',
-    key: ' ',
-    ctrlKey: true,
-    altKey: false,
-    shiftKey: false,
-    metaKey: false,
-    preventDefault() {},
-    stopPropagation() {},
-  };
-
-  // Open native search
-  for (const listener of keydownListeners) {
-    listener(ctrlSpaceEvent);
-  }
-  assert.strictEqual(gURLBar.focused, true);
-
-  // Escape key event
-  let prevented = false;
-  let stopped = false;
+  // Trigger Escape
   const escEvent = {
     key: 'Escape',
-    preventDefault() { prevented = true; },
-    stopPropagation() { stopped = true; },
+    preventDefault() {},
+    stopPropagation() {},
   };
-
   for (const listener of keydownListeners) {
     listener(escEvent);
   }
-
-  assert.strictEqual(prevented, true);
-  assert.strictEqual(stopped, true);
-  assert.strictEqual(gURLBar.focused, false);
-  assert.strictEqual(gURLBar.searchMode, null);
-  assert.strictEqual(gURLBar.view.isOpen, false);
-  assert.ok(calls.includes('browserFocused'));
-  assert.strictEqual(win.__zenHeliarcSearch.isOpen(), false);
+  assert.strictEqual(search.isOpen(), false);
 });
 
-test('Pressing Space inside Ctrl+Tab panel closes panel and opens Native Tab Search', () => {
-  const { panel, gURLBar } = load();
+test('pressing Space inside Ctrl+Tab panel opens Spotlight Search', () => {
+  const { win, panel } = load();
+  const search = win.__zenHeliarcSearch;
 
   const keydownListeners = panel.listeners['keydown'] || [];
   assert.ok(keydownListeners.length > 0);
@@ -533,49 +579,188 @@ test('Pressing Space inside Ctrl+Tab panel closes panel and opens Native Tab Sea
     preventDefault() {},
     stopPropagation() {},
   };
-
   for (const listener of keydownListeners) {
     listener(spaceEvent);
   }
-
-  assert.strictEqual(panel.hidden, true);
-  assert.strictEqual(gURLBar.focused, true);
-  assert.strictEqual(gURLBar.searchMode.source, 4);
-  assert.strictEqual(gURLBar.view.isOpen, true);
+  assert.strictEqual(search.isOpen(), true);
 });
 
-test('When search-enabled preference is false, Ctrl+Space does not activate gURLBar', () => {
-  const { win, gURLBar } = load({ 'zen-heliarc-ctrltab.search-enabled': false });
-
-  const keydownListeners = win.listeners['keydown'] || [];
-  const ctrlSpaceEvent = {
-    code: 'Space',
-    key: ' ',
-    ctrlKey: true,
-    altKey: false,
-    shiftKey: false,
-    metaKey: false,
-    preventDefault() {},
-    stopPropagation() {},
+test('Spotlight Tab Search excludes blank and empty New Tab pages (about:blank, about:newtab, zen-empty-tab)', () => {
+  const blankTab1 = {
+    label: 'New Tab',
+    linkedPanel: 'p-blank1',
+    isConnected: true,
+    linkedBrowser: { currentURI: { spec: 'about:blank' } },
+    getAttribute: () => null,
+  };
+  const blankTab2 = {
+    label: 'Nueva pestaña',
+    linkedPanel: 'p-blank2',
+    isConnected: true,
+    hasAttribute: (a) => a === 'zen-empty-tab',
+    getAttribute: () => null,
+  };
+  const validTab = {
+    label: 'WhatsApp',
+    linkedPanel: 'p-valid',
+    isConnected: true,
+    linkedBrowser: { currentURI: { spec: 'https://web.whatsapp.com/' } },
+    getAttribute: () => null,
   };
 
-  for (const listener of keydownListeners) {
-    listener(ctrlSpaceEvent);
-  }
+  const { win } = load({}, [blankTab1, validTab, blankTab2]);
+  const search = win.__zenHeliarcSearch;
 
-  assert.strictEqual(gURLBar.focused, false);
-  assert.strictEqual(gURLBar.searchMode, null);
-  assert.strictEqual(gURLBar.view.isOpen, false);
+  search.open();
+  const items = search.getItems();
+  assert.strictEqual(items.length, 1);
+  assert.strictEqual(items[0].title, 'WhatsApp');
+
+  // Verify that even searching specifically for "New Tab" or "about:blank" yields 0 results
+  search.updateQuery('New Tab');
+  assert.strictEqual(search.getItems().length, 0);
+
+  search.updateQuery('about:blank');
+  assert.strictEqual(search.getItems().length, 0);
 });
 
-test('Fallback to setSearchMode and startQuery if gURLBar.search is not available', () => {
-  const { win, gURLBar } = load();
-  delete gURLBar.search;
+test('Spotlight Tab Search distinguishes between Essential tabs and Pinned tabs with distinct badges', () => {
+  const essentialTab = {
+    label: 'WhatsApp',
+    linkedPanel: 'p-ess',
+    isConnected: true,
+    pinned: true,
+    hasAttribute: (a) => a === 'zen-essential',
+    getAttribute: (a) => (a === 'zen-essential' ? 'true' : null),
+  };
+  const pinnedTab = {
+    label: 'Cuentos de Andrómeda',
+    linkedPanel: 'p-pin',
+    isConnected: true,
+    pinned: true,
+    hasAttribute: (a) => a === 'pinned',
+    getAttribute: (a) => (a === 'zen-workspace-name' ? 'Lecturas' : null),
+  };
+  const pinnedTabNoWs = {
+    label: 'Libro de Cuentas',
+    linkedPanel: 'p-pin2',
+    isConnected: true,
+    pinned: true,
+    hasAttribute: (a) => a === 'pinned',
+    getAttribute: () => null,
+  };
+  const normalTab = {
+    label: 'Figma Dashboard',
+    linkedPanel: 'p-norm',
+    isConnected: true,
+    pinned: false,
+    hasAttribute: () => false,
+    getAttribute: (a) => (a === 'zen-workspace-name' ? 'Diseño' : null),
+  };
 
-  win.__zenHeliarcSearch.open();
-  assert.strictEqual(gURLBar.focused, true);
-  assert.strictEqual(gURLBar.searchMode.source, 4);
-  assert.strictEqual(gURLBar.view.isOpen, true);
+  const { win } = load({}, [essentialTab, pinnedTab, pinnedTabNoWs, normalTab]);
+  const search = win.__zenHeliarcSearch;
+
+  search.open();
+  const items = search.getItems();
+  assert.strictEqual(items.length, 4);
+
+  const essItem = items.find((i) => i.title === 'WhatsApp');
+  assert.strictEqual(essItem.isEssential, true);
+  assert.strictEqual(essItem.isPinned, false);
+  assert.strictEqual(essItem.badgeText, 'Essential');
+  assert.strictEqual(essItem.badgeType, 'essential');
+
+  const pinItem = items.find((i) => i.title === 'Cuentos de Andrómeda');
+  assert.strictEqual(pinItem.isEssential, false);
+  assert.strictEqual(pinItem.isPinned, true);
+  assert.strictEqual(pinItem.badgeText, 'Pinned');
+  assert.strictEqual(pinItem.badgeType, 'pinned');
+  assert.strictEqual(pinItem.workspace, 'Lecturas');
+
+  const pinItemNoWs = items.find((i) => i.title === 'Libro de Cuentas');
+  assert.strictEqual(pinItemNoWs.isEssential, false);
+  assert.strictEqual(pinItemNoWs.isPinned, true);
+  assert.strictEqual(pinItemNoWs.badgeText, 'Pinned');
+
+  const normItem = items.find((i) => i.title === 'Figma Dashboard');
+  assert.strictEqual(normItem.isEssential, false);
+  assert.strictEqual(normItem.isPinned, false);
+  assert.strictEqual(normItem.badgeText, 'Diseño');
+  assert.strictEqual(normItem.badgeType, 'workspace');
+});
+
+test('Spotlight Tab Search switches workspace for Pinned tabs belonging to other workspaces', () => {
+  const wsChanged = [];
+  const pinnedTabOtherWs = {
+    label: 'Pinned in Workspace B',
+    linkedPanel: 'p-pin-b',
+    isConnected: true,
+    pinned: true,
+    hasAttribute: (a) => a === 'pinned',
+    getAttribute: (a) => (a === 'zen-workspace-id' ? 'ws-B' : null),
+  };
+
+  const { win, gBrowser } = load({}, [pinnedTabOtherWs]);
+  win.gZenWorkspaces = {
+    activeWorkspace: { id: 'ws-A' },
+    changeWorkspace(id) { wsChanged.push(id); },
+  };
+
+  const search = win.__zenHeliarcSearch;
+  search.open();
+  search.setSelectedIndex(0);
+  search.executeSelected();
+
+  assert.strictEqual(wsChanged.length, 1);
+  assert.strictEqual(wsChanged[0], 'ws-B');
+  assert.strictEqual(gBrowser.selectedTab, pinnedTabOtherWs);
+});
+
+test('Spotlight Tab Search query matches "pinned" and "fijada" for pinned tabs and "essential" / "esencial" for essentials', () => {
+  const essentialTab = {
+    label: 'WhatsApp',
+    linkedPanel: 'p-ess',
+    isConnected: true,
+    hasAttribute: (a) => a === 'zen-essential',
+    getAttribute: (a) => (a === 'zen-essential' ? 'true' : null),
+  };
+  const pinnedTab = {
+    label: 'Cuentos de Andrómeda',
+    linkedPanel: 'p-pin',
+    isConnected: true,
+    pinned: true,
+    hasAttribute: (a) => a === 'pinned',
+    getAttribute: () => null,
+  };
+  const normalTab = {
+    label: 'Google Search',
+    linkedPanel: 'p-norm',
+    isConnected: true,
+    pinned: false,
+    getAttribute: () => null,
+  };
+
+  const { win } = load({}, [essentialTab, pinnedTab, normalTab]);
+  const search = win.__zenHeliarcSearch;
+
+  search.open();
+
+  search.updateQuery('pinned');
+  assert.strictEqual(search.getItems().length, 1);
+  assert.strictEqual(search.getItems()[0].title, 'Cuentos de Andrómeda');
+
+  search.updateQuery('fijada');
+  assert.strictEqual(search.getItems().length, 1);
+  assert.strictEqual(search.getItems()[0].title, 'Cuentos de Andrómeda');
+
+  search.updateQuery('essential');
+  assert.strictEqual(search.getItems().length, 1);
+  assert.strictEqual(search.getItems()[0].title, 'WhatsApp');
+
+  search.updateQuery('esencial');
+  assert.strictEqual(search.getItems().length, 1);
+  assert.strictEqual(search.getItems()[0].title, 'WhatsApp');
 });
 
 test('Ctrl+Tab switcher ignores blank and empty New Tab pages in tabList, attachTab, and updatePreview', () => {
