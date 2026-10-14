@@ -560,10 +560,17 @@
   background: rgba(255, 255, 255, 0.08) !important;
   color: rgba(255, 255, 255, 0.72) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  margin-left: auto !important;
   flex-shrink: 0 !important;
   white-space: nowrap !important;
   letter-spacing: 0.02em !important;
+}
+
+.heliarc-search-item > .heliarc-search-badge:first-of-type {
+  margin-left: auto !important;
+}
+
+.heliarc-search-item > .heliarc-search-badge + .heliarc-search-badge {
+  margin-left: 6px !important;
 }
 
 .heliarc-search-badge.current {
@@ -578,6 +585,18 @@
   background: rgba(255, 255, 255, 0.10) !important;
   color: rgba(255, 255, 255, 0.85) !important;
   border: 1px solid rgba(255, 255, 255, 0.16) !important;
+}
+
+.heliarc-search-badge.essential {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: rgba(255, 255, 255, 0.90) !important;
+  border: 1px solid rgba(255, 255, 255, 0.20) !important;
+}
+
+.heliarc-search-badge.pinned {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.75) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
 }
 
 #heliarc-search-empty {

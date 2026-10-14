@@ -48,6 +48,44 @@
     );
   };
 
+  const isBlankTab = (tab) => {
+    if (!tab) return true;
+    if (tab.hasAttribute?.('zen-empty-tab') || tab.getAttribute?.('zen-empty-tab') === 'true') return true;
+    if (tab.hasAttribute?.('zen-empty') || tab.getAttribute?.('zen-empty') === 'true') return true;
+    if (tab.isEmpty) return true;
+
+    const rawUrl =
+      tab.linkedBrowser?.currentURI?.spec ||
+      tab.linkedBrowser?.documentURI?.spec ||
+      tab.getAttribute?.('zen-url') ||
+      tab.getAttribute?.('url') ||
+      '';
+    const url = String(rawUrl).trim().toLowerCase();
+    const title = String(tab.label || tab.getAttribute?.('label') || '').trim().toLowerCase();
+
+    if (
+      url === 'about:blank' ||
+      url.startsWith('about:blank') ||
+      url === 'about:newtab' ||
+      url.startsWith('about:newtab') ||
+      url === 'about:home' ||
+      url.startsWith('about:home') ||
+      url === 'chrome://browser/content/blanktab.html'
+    ) {
+      return true;
+    }
+
+    if (!url && (title === 'new tab' || title === 'nueva pestaña' || title === 'about:blank')) {
+      return true;
+    }
+
+    if (title === 'new tab' || title === 'nueva pestaña' || title === 'about:blank') {
+      if (!url || url.startsWith('about:')) return true;
+    }
+
+    return false;
+  };
+
   // Forward declarations for search modal
   let searchModal = null;
 
@@ -137,6 +175,7 @@
       if (tab.closing || tab.isConnected === false) return;
       if (tab.hidden && !tab.selected) return;
       if (!showUnloaded && isTabUnloaded(tab)) return;
+      if (isBlankTab(tab)) return;
       if (seenTabs.has(tab)) return;
 
       const panelId = tab.linkedPanel || tab.permanentKey;
@@ -155,6 +194,10 @@
       for (const tab of window.gBrowser.tabs) {
         addTab(tab);
       }
+    }
+
+    if (cleanList.length === 0 && rawList.length > 0) {
+      cleanList.push(rawList[0]);
     }
 
     if (Array.isArray(native._recentlyUsedTabs)) {
@@ -194,6 +237,7 @@
     native.attachTab = function (tab, pos) {
       if (!tab || tab.closing || (tab.hidden && !tab.selected)) return;
       if (!pref('show-unloaded', false) && isTabUnloaded(tab)) return;
+      if (isBlankTab(tab)) return;
       this.detachTab(tab);
       if (!Array.isArray(this._recentlyUsedTabs)) {
         originalAttachTab.call(this, tab, pos);
@@ -217,7 +261,7 @@
   native.updatePreview = function (preview, tab) {
     if (preview === this.showAllButton) return;
 
-    if (!tab) {
+    if (!tab || isBlankTab(tab)) {
       preview.hidden = true;
       preview.style.display = 'none';
       preview.removeAttribute('heliarc-unloaded');
@@ -473,10 +517,17 @@
       tab.hasAttribute?.('zen-essential') ||
       tab.getAttribute?.('zen-essential') === 'true' ||
       tab.hasAttribute?.('zen-pin-essential') ||
+      tab.hasAttribute?.('zen-essential-id') ||
+      tab.classList?.contains?.('zen-essential-tab') ||
       tab.closest?.('#zen-essentials-container') ||
-      tab.parentNode?.id === 'zen-essentials-container' ||
-      tab.pinned
+      tab.parentNode?.id === 'zen-essentials-container'
     );
+  };
+
+  const isPinnedTab = (tab) => {
+    if (!tab) return false;
+    if (isEssentialTab(tab)) return false;
+    return !!(tab.pinned || tab.hasAttribute?.('pinned'));
   };
 
   // Resolve Zen Workspace name for a given tab
@@ -511,11 +562,33 @@
     const rawTabs = currentWin.gBrowser?.tabs ? Array.from(currentWin.gBrowser.tabs) : [];
     for (const tab of rawTabs) {
       if (!tab || tab.closing || tab.isConnected === false) continue;
+      if (isBlankTab(tab)) continue;
+
       const url = tab.linkedBrowser?.currentURI?.spec || tab.getAttribute?.('zen-url') || tab.getAttribute?.('url') || '';
       const title = tab.label || tab.getAttribute?.('label') || 'Nueva pestaña';
       const icon = tab.getAttribute?.('image') || tab.image || '';
-      const workspace = getTabWorkspaceName(tab);
+      const isEssential = isEssentialTab(tab);
+      const isPinned = isPinnedTab(tab);
+      const wsName = getTabWorkspaceName(tab);
+      const workspace = isEssential ? 'Essential' : wsName;
       const isCurrent = tab === currentTab;
+
+      let badgeText = '';
+      let badgeType = '';
+
+      if (isEssential) {
+        badgeText = 'Essential';
+        badgeType = 'essential';
+      } else if (isPinned) {
+        badgeText = 'Pinned';
+        badgeType = 'pinned';
+      } else if (workspace) {
+        badgeText = workspace;
+        badgeType = 'workspace';
+      } else if (isCurrent) {
+        badgeText = 'Actual';
+        badgeType = 'current';
+      }
 
       tabs.push({
         type: 'tab',
@@ -524,6 +597,10 @@
         url,
         icon,
         workspace,
+        badgeText,
+        badgeType,
+        isEssential,
+        isPinned,
         isCurrent,
         win: currentWin,
       });
@@ -633,7 +710,10 @@
         const matchTitle = (item.title || '').toLowerCase().includes(trimmed);
         const matchUrl = (item.url || '').toLowerCase().includes(trimmed);
         const matchWs = (item.workspace || '').toLowerCase().includes(trimmed);
-        if (matchTitle || matchUrl || matchWs) {
+        const matchBadge = (item.badgeText || '').toLowerCase().includes(trimmed);
+        const matchPinned = item.isPinned && ('pinned'.includes(trimmed) || 'fijada'.includes(trimmed) || 'fijadas'.includes(trimmed));
+        const matchEssential = item.isEssential && ('essential'.includes(trimmed) || 'esencial'.includes(trimmed) || 'esenciales'.includes(trimmed));
+        if (matchTitle || matchUrl || matchWs || matchBadge || matchPinned || matchEssential) {
           filtered.push(item);
         }
         if (filtered.length >= maxResults) break;
@@ -697,13 +777,14 @@
       li.append(content);
 
       // Badges
-      if (item.workspace) {
-        const badge = el('span', 'heliarc-search-badge workspace');
-        badge.textContent = item.workspace;
-        li.append(badge);
-      } else if (item.isCurrent) {
-        const badge = el('span', 'heliarc-search-badge current');
-        badge.textContent = 'Actual';
+      if (item.isPinned && item.workspace && item.workspace !== 'Pinned' && item.workspace !== 'Essential') {
+        const wsBadge = el('span', 'heliarc-search-badge workspace');
+        wsBadge.textContent = item.workspace;
+        li.append(wsBadge);
+      }
+      if (item.badgeText) {
+        const badge = el('span', `heliarc-search-badge ${item.badgeType}`);
+        badge.textContent = item.badgeText;
         li.append(badge);
       }
 

@@ -47,9 +47,16 @@ class El {
   querySelector(selector) {
     if (selector.startsWith('.')) {
       const cls = selector.slice(1);
-      return this.children.find((c) => c.className === cls) || null;
+      return this.children.find((c) => (c.className || '').split(/\s+/).includes(cls)) || null;
     }
     return null;
+  }
+  querySelectorAll(selector) {
+    if (selector.startsWith('.')) {
+      const cls = selector.slice(1);
+      return this.children.filter((c) => (c.className || '').split(/\s+/).includes(cls));
+    }
+    return [];
   }
   addEventListener(t, f) {
     (this.listeners[t] ||= []).push(f);
@@ -577,6 +584,219 @@ test('pressing Space inside Ctrl+Tab panel opens Spotlight Search', () => {
   }
   assert.strictEqual(search.isOpen(), true);
 });
+
+test('Spotlight Tab Search excludes blank and empty New Tab pages (about:blank, about:newtab, zen-empty-tab)', () => {
+  const blankTab1 = {
+    label: 'New Tab',
+    linkedPanel: 'p-blank1',
+    isConnected: true,
+    linkedBrowser: { currentURI: { spec: 'about:blank' } },
+    getAttribute: () => null,
+  };
+  const blankTab2 = {
+    label: 'Nueva pestaña',
+    linkedPanel: 'p-blank2',
+    isConnected: true,
+    hasAttribute: (a) => a === 'zen-empty-tab',
+    getAttribute: () => null,
+  };
+  const validTab = {
+    label: 'WhatsApp',
+    linkedPanel: 'p-valid',
+    isConnected: true,
+    linkedBrowser: { currentURI: { spec: 'https://web.whatsapp.com/' } },
+    getAttribute: () => null,
+  };
+
+  const { win } = load({}, [blankTab1, validTab, blankTab2]);
+  const search = win.__zenHeliarcSearch;
+
+  search.open();
+  const items = search.getItems();
+  assert.strictEqual(items.length, 1);
+  assert.strictEqual(items[0].title, 'WhatsApp');
+
+  // Verify that even searching specifically for "New Tab" or "about:blank" yields 0 results
+  search.updateQuery('New Tab');
+  assert.strictEqual(search.getItems().length, 0);
+
+  search.updateQuery('about:blank');
+  assert.strictEqual(search.getItems().length, 0);
+});
+
+test('Spotlight Tab Search distinguishes between Essential tabs and Pinned tabs with distinct badges', () => {
+  const essentialTab = {
+    label: 'WhatsApp',
+    linkedPanel: 'p-ess',
+    isConnected: true,
+    pinned: true,
+    hasAttribute: (a) => a === 'zen-essential',
+    getAttribute: (a) => (a === 'zen-essential' ? 'true' : null),
+  };
+  const pinnedTab = {
+    label: 'Cuentos de Andrómeda',
+    linkedPanel: 'p-pin',
+    isConnected: true,
+    pinned: true,
+    hasAttribute: (a) => a === 'pinned',
+    getAttribute: (a) => (a === 'zen-workspace-name' ? 'Lecturas' : null),
+  };
+  const pinnedTabNoWs = {
+    label: 'Libro de Cuentas',
+    linkedPanel: 'p-pin2',
+    isConnected: true,
+    pinned: true,
+    hasAttribute: (a) => a === 'pinned',
+    getAttribute: () => null,
+  };
+  const normalTab = {
+    label: 'Figma Dashboard',
+    linkedPanel: 'p-norm',
+    isConnected: true,
+    pinned: false,
+    hasAttribute: () => false,
+    getAttribute: (a) => (a === 'zen-workspace-name' ? 'Diseño' : null),
+  };
+
+  const { win } = load({}, [essentialTab, pinnedTab, pinnedTabNoWs, normalTab]);
+  const search = win.__zenHeliarcSearch;
+
+  search.open();
+  const items = search.getItems();
+  assert.strictEqual(items.length, 4);
+
+  const essItem = items.find((i) => i.title === 'WhatsApp');
+  assert.strictEqual(essItem.isEssential, true);
+  assert.strictEqual(essItem.isPinned, false);
+  assert.strictEqual(essItem.badgeText, 'Essential');
+  assert.strictEqual(essItem.badgeType, 'essential');
+
+  const pinItem = items.find((i) => i.title === 'Cuentos de Andrómeda');
+  assert.strictEqual(pinItem.isEssential, false);
+  assert.strictEqual(pinItem.isPinned, true);
+  assert.strictEqual(pinItem.badgeText, 'Pinned');
+  assert.strictEqual(pinItem.badgeType, 'pinned');
+  assert.strictEqual(pinItem.workspace, 'Lecturas');
+
+  const pinItemNoWs = items.find((i) => i.title === 'Libro de Cuentas');
+  assert.strictEqual(pinItemNoWs.isEssential, false);
+  assert.strictEqual(pinItemNoWs.isPinned, true);
+  assert.strictEqual(pinItemNoWs.badgeText, 'Pinned');
+
+  const normItem = items.find((i) => i.title === 'Figma Dashboard');
+  assert.strictEqual(normItem.isEssential, false);
+  assert.strictEqual(normItem.isPinned, false);
+  assert.strictEqual(normItem.badgeText, 'Diseño');
+  assert.strictEqual(normItem.badgeType, 'workspace');
+});
+
+test('Spotlight Tab Search switches workspace for Pinned tabs belonging to other workspaces', () => {
+  const wsChanged = [];
+  const pinnedTabOtherWs = {
+    label: 'Pinned in Workspace B',
+    linkedPanel: 'p-pin-b',
+    isConnected: true,
+    pinned: true,
+    hasAttribute: (a) => a === 'pinned',
+    getAttribute: (a) => (a === 'zen-workspace-id' ? 'ws-B' : null),
+  };
+
+  const { win, gBrowser } = load({}, [pinnedTabOtherWs]);
+  win.gZenWorkspaces = {
+    activeWorkspace: { id: 'ws-A' },
+    changeWorkspace(id) { wsChanged.push(id); },
+  };
+
+  const search = win.__zenHeliarcSearch;
+  search.open();
+  search.setSelectedIndex(0);
+  search.executeSelected();
+
+  assert.strictEqual(wsChanged.length, 1);
+  assert.strictEqual(wsChanged[0], 'ws-B');
+  assert.strictEqual(gBrowser.selectedTab, pinnedTabOtherWs);
+});
+
+test('Spotlight Tab Search query matches "pinned" and "fijada" for pinned tabs and "essential" / "esencial" for essentials', () => {
+  const essentialTab = {
+    label: 'WhatsApp',
+    linkedPanel: 'p-ess',
+    isConnected: true,
+    hasAttribute: (a) => a === 'zen-essential',
+    getAttribute: (a) => (a === 'zen-essential' ? 'true' : null),
+  };
+  const pinnedTab = {
+    label: 'Cuentos de Andrómeda',
+    linkedPanel: 'p-pin',
+    isConnected: true,
+    pinned: true,
+    hasAttribute: (a) => a === 'pinned',
+    getAttribute: () => null,
+  };
+  const normalTab = {
+    label: 'Google Search',
+    linkedPanel: 'p-norm',
+    isConnected: true,
+    pinned: false,
+    getAttribute: () => null,
+  };
+
+  const { win } = load({}, [essentialTab, pinnedTab, normalTab]);
+  const search = win.__zenHeliarcSearch;
+
+  search.open();
+
+  search.updateQuery('pinned');
+  assert.strictEqual(search.getItems().length, 1);
+  assert.strictEqual(search.getItems()[0].title, 'Cuentos de Andrómeda');
+
+  search.updateQuery('fijada');
+  assert.strictEqual(search.getItems().length, 1);
+  assert.strictEqual(search.getItems()[0].title, 'Cuentos de Andrómeda');
+
+  search.updateQuery('essential');
+  assert.strictEqual(search.getItems().length, 1);
+  assert.strictEqual(search.getItems()[0].title, 'WhatsApp');
+
+  search.updateQuery('esencial');
+  assert.strictEqual(search.getItems().length, 1);
+  assert.strictEqual(search.getItems()[0].title, 'WhatsApp');
+});
+
+test('Ctrl+Tab switcher ignores blank and empty New Tab pages in tabList, attachTab, and updatePreview', () => {
+  const blankTab = {
+    label: 'New Tab',
+    linkedPanel: 'p-blank',
+    isConnected: true,
+    linkedBrowser: { currentURI: { spec: 'about:blank' } },
+  };
+  const activeTab = {
+    label: 'Active Web Tab',
+    linkedPanel: 'p-active',
+    isConnected: true,
+    linkedBrowser: { currentURI: { spec: 'https://example.com' } },
+  };
+
+  const { native } = load({}, [activeTab, blankTab]);
+  native._recentlyUsedTabs = [blankTab, activeTab];
+
+  // tabList should only contain the active web tab, excluding blankTab
+  const list = native.tabList;
+  assert.strictEqual(list.length, 1);
+  assert.strictEqual(list[0], activeTab);
+
+  // attachTab should reject blankTab
+  native.attachTab(blankTab, 0);
+  assert.strictEqual(native._recentlyUsedTabs.includes(blankTab), false);
+
+  // updatePreview should hide preview for blankTab
+  const preview = new El('button');
+  native.updatePreview(preview, blankTab);
+  assert.strictEqual(preview.hidden, true);
+  assert.strictEqual(preview.style.display, 'none');
+});
+
+
 
 
 
