@@ -461,16 +461,16 @@
   // Redirects Ctrl+Space directly to Zen's native floating tab search (@tabs / %)
   // =========================================================================
 
-  const getUrlbarUtils = () => {
-    if (window.UrlbarUtils) return window.UrlbarUtils;
+  const getUrlbarShared = () => {
+    if (window.UrlbarShared) return window.UrlbarShared;
     try {
       if (typeof ChromeUtils?.importESModule === 'function') {
-        return ChromeUtils.importESModule('resource:///modules/UrlbarUtils.sys.mjs').UrlbarUtils;
+        return ChromeUtils.importESModule('chrome://browser/content/urlbar/UrlbarShared.mjs').UrlbarShared;
       }
     } catch {}
     try {
-      if (typeof Cu?.import === 'function') {
-        return Cu.import('resource:///modules/UrlbarUtils.jsm', {}).UrlbarUtils;
+      if (typeof ChromeUtils?.importESModule === 'function') {
+        return ChromeUtils.importESModule('resource:///modules/UrlbarShared.sys.mjs').UrlbarShared;
       }
     } catch {}
     return null;
@@ -481,14 +481,29 @@
     if (!bar) return;
 
     try {
+      if (typeof bar.handleRevert === 'function') {
+        bar.handleRevert();
+      }
+    } catch {}
+
+    try {
+      const targetBrowser = window.gBrowser?.selectedBrowser;
       if (typeof bar.setSearchMode === 'function') {
-        bar.setSearchMode(null);
+        bar.setSearchMode(null, targetBrowser);
+      } else {
+        bar.searchMode = null;
+      }
+    } catch {}
+
+    try {
+      if (bar.searchMode) {
+        bar.searchMode = null;
       }
     } catch {}
 
     try {
       if (bar.view && typeof bar.view.close === 'function') {
-        bar.view.close();
+        bar.view.close({ showFocusBorder: false });
       }
     } catch {}
 
@@ -514,28 +529,65 @@
     if (!bar) return;
 
     // Toggle: if urlbar is already focused and in tab search mode or open, close it cleanly
-    if (bar.focused && (bar.view?.isOpen || bar.searchMode)) {
+    if (bar.focused && (bar.view?.isOpen || bar.searchMode || bar.value?.startsWith?.('%') || bar.value?.startsWith?.('@tab'))) {
       closeNativeTabSearch();
       return;
     }
 
-    try { bar.focus?.(); } catch {}
+    try {
+      bar.focus?.();
+      bar.select?.();
+    } catch {}
 
-    const utils = getUrlbarUtils();
-    const sourceTabs = utils?.RESULT_SOURCE?.TABS ?? 3;
+    // Primary: Firefox/Zen native search("% ")
+    let didSearch = false;
+    try {
+      if (typeof bar.search === 'function') {
+        bar.search('% ');
+        didSearch = true;
+      }
+    } catch {}
 
-    if (typeof bar.setSearchMode === 'function') {
+    // Fallback if search() didn't set searchMode or wasn't available
+    if (!didSearch || !bar.searchMode) {
       try {
-        bar.setSearchMode({
+        const shared = getUrlbarShared();
+        const sourceTabs = shared?.RESULT_SOURCE?.TABS ?? 4;
+        const targetBrowser = window.gBrowser?.selectedBrowser;
+        const tabsMode = {
           source: sourceTabs,
           entry: 'shortcut',
-        }, true);
-      } catch {
-        try { bar.search?.('% '); } catch {}
-      }
-    } else if (typeof bar.search === 'function') {
-      try { bar.search?.('% '); } catch {}
+        };
+
+        if (typeof bar.setSearchMode === 'function') {
+          bar.setSearchMode(tabsMode, targetBrowser);
+        } else {
+          bar.searchMode = tabsMode;
+        }
+
+        if (bar.inputField) {
+          bar.inputField.value = '';
+          const evt = new (window.UIEvent || window.CustomEvent)('input', {
+            bubbles: true,
+            cancelable: false,
+            view: window,
+            detail: 0,
+          });
+          bar.inputField.dispatchEvent(evt);
+        }
+
+        if (typeof bar.startQuery === 'function') {
+          bar.startQuery({ searchString: '' });
+        }
+      } catch {}
     }
+
+    // Ensure view popup opens if it hasn't opened yet
+    try {
+      if (bar.view && !bar.view.isOpen && typeof bar.view.open === 'function') {
+        bar.view.open();
+      }
+    } catch {}
   };
 
   const isCtrlSpace = (e) => {

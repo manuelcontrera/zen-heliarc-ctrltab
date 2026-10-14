@@ -137,19 +137,27 @@ function load(prefValues = {}, customTabs = []) {
   const mockURLBar = {
     focused: false,
     searchMode: null,
+    query: '',
     view: {
       isOpen: false,
       close() { this.isOpen = false; },
+      open() { this.isOpen = true; },
     },
     focus() { this.focused = true; },
     blur() { this.focused = false; },
-    setSearchMode(mode, openView) {
+    handleRevert() {
+      this.searchMode = null;
+      this.query = '';
+    },
+    setSearchMode(mode, targetBrowser) {
       this.searchMode = mode;
-      if (openView && mode) this.view.isOpen = true;
+      if (mode) this.view.isOpen = true;
       if (!mode) this.view.isOpen = false;
     },
     search(query) {
       this.query = query;
+      this.focused = true;
+      this.searchMode = { source: 4, entry: 'shortcut' };
       this.view.isOpen = true;
     },
   };
@@ -176,9 +184,9 @@ function load(prefValues = {}, customTabs = []) {
     addEventListener(t, f) { (this.listeners[t] ||= []).push(f); },
     gBrowser: mockBrowser,
     gURLBar: mockURLBar,
-    UrlbarUtils: {
+    UrlbarShared: {
       RESULT_SOURCE: {
-        TABS: 3,
+        TABS: 4,
       },
     },
     MouseEvent: globalThis.MouseEvent || function (t) { this.type = t; },
@@ -432,7 +440,7 @@ test('Ctrl+Space shortcut triggers Native Tab Search in gURLBar with RESULT_SOUR
 
   assert.strictEqual(gURLBar.focused, true);
   assert.ok(gURLBar.searchMode);
-  assert.strictEqual(gURLBar.searchMode.source, 3);
+  assert.strictEqual(gURLBar.searchMode.source, 4);
   assert.strictEqual(gURLBar.view.isOpen, true);
   assert.strictEqual(win.__zenHeliarcSearch.isOpen(), true);
 });
@@ -532,7 +540,7 @@ test('Pressing Space inside Ctrl+Tab panel closes panel and opens Native Tab Sea
 
   assert.strictEqual(panel.hidden, true);
   assert.strictEqual(gURLBar.focused, true);
-  assert.strictEqual(gURLBar.searchMode.source, 3);
+  assert.strictEqual(gURLBar.searchMode.source, 4);
   assert.strictEqual(gURLBar.view.isOpen, true);
 });
 
@@ -560,13 +568,13 @@ test('When search-enabled preference is false, Ctrl+Space does not activate gURL
   assert.strictEqual(gURLBar.view.isOpen, false);
 });
 
-test('Fallback to gURLBar.search("% ") if setSearchMode is not available', () => {
+test('Fallback to setSearchMode and startQuery if gURLBar.search is not available', () => {
   const { win, gURLBar } = load();
-  delete gURLBar.setSearchMode;
+  delete gURLBar.search;
 
   win.__zenHeliarcSearch.open();
   assert.strictEqual(gURLBar.focused, true);
-  assert.strictEqual(gURLBar.query, '% ');
+  assert.strictEqual(gURLBar.searchMode.source, 4);
   assert.strictEqual(gURLBar.view.isOpen, true);
 });
 
