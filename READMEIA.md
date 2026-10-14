@@ -100,6 +100,13 @@ Heliarc sigue un diseño geométrico concéntrico estricto extraído de su imple
   * Escala simétrica sin desplazamiento: `transform: scale(1.03)` con `transform-origin: center center !important;` (sin `translateY` para que no suba ni se descentre).
   * Resplandor: `box-shadow: 0 0 22px color-mix(in srgb, var(--heliarc-ring-color) 50%, transparent)`.
 
+### 3.4 Integración de Búsqueda Nativa de Pestañas (`Ctrl+Space`)
+En lugar de inyectar modales propios pesados en el DOM, el atajo `Ctrl+Space` (o `Space` dentro del panel Ctrl+Tab) interactúa directamente con la barra de direcciones flotante nativa de Zen (`gURLBar`):
+* Invoca `gURLBar.focus()` y `gURLBar.setSearchMode({ source: UrlbarUtils.RESULT_SOURCE.TABS, entry: 'shortcut' }, true)` (con fallback a `gURLBar.search('% ')`), activando el chip nativo de `@tabs` / `%`.
+* Comportamiento *toggle*: pulsar `Ctrl+Space` nuevamente mientras la barra está activa la cierra limpiamente y devuelve el foco al navegador web.
+* Tecla `Escape`: interceptada con captura de eventos para cerrar la barra, resetear el modo de búsqueda y reenfocar la página viva instantáneamente.
+* Configuración simplificada: controlada por un único toggle booleano en `preferences.json` (`zen-heliarc-ctrltab.search-enabled`).
+
 ---
 
 ## 4. Cómo Probar y Validar el Código

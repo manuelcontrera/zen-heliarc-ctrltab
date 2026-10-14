@@ -74,40 +74,14 @@
   },
   {
     "type": "separator",
-    "label": "Spotlight Tab Search (SpotTab)",
+    "label": "Native Tab Search (Ctrl+Space)",
     "margin": "14px 0 14px 0"
   },
   {
     "type": "checkbox",
     "property": "zen-heliarc-ctrltab.search-enabled",
-    "label": "Enable Spotlight Tab Search bar",
+    "label": "Enable Ctrl+Space shortcut for Zen native tab search (@tabs)",
     "defaultValue": true
-  },
-  {
-    "type": "dropdown",
-    "property": "zen-heliarc-ctrltab.search-shortcut",
-    "value": "string",
-    "label": "Spotlight search shortcut",
-    "defaultValue": "Ctrl+Space",
-    "options": [
-      { "label": "Ctrl + Space (SpotTab default)", "value": "Ctrl+Space" },
-      { "label": "Ctrl + Shift + A (Search tabs standard)", "value": "Ctrl+Shift+A" },
-      { "label": "Alt + Space", "value": "Alt+Space" },
-      { "label": "Ctrl + Alt + T", "value": "Ctrl+Alt+T" }
-    ]
-  },
-  {
-    "type": "dropdown",
-    "property": "zen-heliarc-ctrltab.search-max-results",
-    "value": "number",
-    "label": "Maximum search results",
-    "defaultValue": 8,
-    "options": [
-      { "label": "6 results", "value": 6 },
-      { "label": "8 results (recommended)", "value": 8 },
-      { "label": "10 results", "value": 10 },
-      { "label": "12 results", "value": 12 }
-    ]
   }
 ]
 
