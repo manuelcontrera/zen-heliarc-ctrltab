@@ -64,6 +64,7 @@ class El {
   hidePopup() { this.hidden = true; }
   openPopup() { this.opened = true; }
   focus() { env.document.activeElement = this; }
+  setSelectionRange(start, end) { this.selectionStart = start; this.selectionEnd = end; }
   getBoundingClientRect() { return { width: 100, height: 100 }; }
 }
 
@@ -173,7 +174,7 @@ function load(prefValues = {}, customTabs = []) {
     code
   )(win, doc, Services, native, {}, mockBrowser, ShortcutUtils);
 
-  return { store, panel, list, showAll, native, win, calls, made, gBrowser: mockBrowser };
+  return { store, panel, list, showAll, native, win, calls, made, gBrowser: mockBrowser, doc };
 }
 
 const ctrlUp = {
@@ -794,6 +795,28 @@ test('Ctrl+Tab switcher ignores blank and empty New Tab pages in tabList, attach
   native.updatePreview(preview, blankTab);
   assert.strictEqual(preview.hidden, true);
   assert.strictEqual(preview.style.display, 'none');
+});
+
+test('Spotlight Tab Search focuses input, resets caret at index 0, and header click focuses input', () => {
+  const { win, doc } = load();
+  const search = win.__zenHeliarcSearch;
+  const input = search.elements.input;
+  const header = search.elements.modal.children[0];
+
+  search.open();
+  assert.strictEqual(doc.activeElement, input);
+  assert.strictEqual(input.selectionStart, 0);
+  assert.strictEqual(input.selectionEnd, 0);
+
+  // Blur input
+  doc.activeElement = null;
+  assert.notStrictEqual(doc.activeElement, input);
+
+  // Click on header
+  for (const listener of (header.listeners.click || [])) {
+    listener({ target: header });
+  }
+  assert.strictEqual(doc.activeElement, input);
 });
 
 

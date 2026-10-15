@@ -1,4 +1,4 @@
-# Heliarc Ctrl+Tab & Spotlight Search for Zen Browser
+# Better Tabs & Search for Zen Browser
 
 An authentic **Arc Browser / Heliarc** tab switcher and **Spotlight command palette** mod for [Zen Browser](https://zen-browser.app).
 
@@ -38,7 +38,7 @@ An authentic **Arc Browser / Heliarc** tab switcher and **Spotlight command pale
 
 ## ⚙️ Settings
 
-Configurable directly from Zen Settings → **Sine Mods** → **Heliarc Ctrl+Tab & Spotlight Search**:
+Configurable directly from Zen Settings → **Sine Mods** → **Better Tabs & Search**:
 
 | Setting | Description | Default |
 | :--- | :--- | :--- |

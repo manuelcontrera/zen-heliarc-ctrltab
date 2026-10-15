@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name           Heliarc Ctrl+Tab & Spotlight Search
-// @description    Arc-style single-row tab switcher with live previews and floating Spotlight tab & web search bar (SpotTab) for Zen Browser.
+// @name           Better Tabs & Search
+// @description    Arc-style single-row tab switcher with live previews and floating Spotlight tab search bar for Zen Browser.
 // @include        main
 // ==/UserScript==
 
@@ -499,6 +499,11 @@
   searchEmpty.style.setProperty('display', 'none');
 
   searchHeader.append(searchIcon, searchInput, searchBadge);
+  searchHeader.addEventListener('click', (e) => {
+    if (e.target !== searchBadge) {
+      try { searchInput.focus(); } catch {}
+    }
+  });
   searchModal.append(searchHeader, searchList, searchEmpty);
   searchOverlay.append(searchModal);
 
@@ -809,7 +814,12 @@
     searchInput.value = '';
     updateSearchResults('');
 
-    try { searchInput.focus(); } catch {}
+    try {
+      searchInput.focus();
+      if (typeof searchInput.setSelectionRange === 'function') {
+        searchInput.setSelectionRange(0, 0);
+      }
+    } catch {}
   };
 
   const closeSearch = () => {

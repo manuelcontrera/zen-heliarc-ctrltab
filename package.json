@@ -1,7 +1,7 @@
 {
   "name": "zen-heliarc-ctrltab",
-  "version": "1.1.1",
-  "description": "Arc/Heliarc style Ctrl+Tab tab previews and Spotlight Tab Search for Zen Browser",
+  "version": "1.1.2",
+  "description": "Better Tabs & Search - Arc/Heliarc style Ctrl+Tab tab previews and Spotlight Tab Search for Zen Browser",
   "scripts": {
     "test": "node --test test/heliarc-ctrltab.test.js"
   },

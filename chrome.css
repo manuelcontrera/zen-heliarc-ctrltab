@@ -404,9 +404,10 @@
   display: flex !important;
   align-items: center !important;
   padding: 16px 20px !important;
-  gap: 14px !important;
+  gap: 12px !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
   box-sizing: border-box !important;
+  cursor: text !important;
 }
 
 #heliarc-search-icon {
@@ -417,23 +418,47 @@
   object-fit: contain !important;
   filter: brightness(0) invert(1) !important;
   opacity: 0.85 !important;
+  pointer-events: none !important;
 }
 
 #heliarc-search-input {
   flex: 1 !important;
+  appearance: none !important;
+  -moz-appearance: none !important;
+  -webkit-appearance: none !important;
   border: none !important;
+  border-radius: 0 !important;
   outline: none !important;
+  box-shadow: none !important;
   background: transparent !important;
   font-size: 16px !important;
   font-weight: 400 !important;
   color: #ffffff !important;
+  caret-color: #ffffff !important;
   letter-spacing: -0.01em !important;
   margin: 0 !important;
+  padding: 0 4px !important;
+  line-height: normal !important;
+  overflow: visible !important;
+  box-sizing: border-box !important;
+}
+
+#heliarc-search-input:focus,
+#heliarc-search-input:focus-visible,
+#heliarc-search-input:-moz-focusring {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+#heliarc-search-input::-moz-focus-inner {
+  border: 0 !important;
   padding: 0 !important;
 }
 
 #heliarc-search-input::placeholder {
   color: rgba(255, 255, 255, 0.38) !important;
+  opacity: 1 !important;
 }
 
 #heliarc-search-shortcut-badge {

@@ -2,7 +2,7 @@
   {
     "type": "checkbox",
     "property": "zen-heliarc-ctrltab.enabled",
-    "label": "Enable Heliarc Ctrl+Tab preview switcher",
+    "label": "Enable Better Tabs & Search preview switcher",
     "defaultValue": true
   },
   {

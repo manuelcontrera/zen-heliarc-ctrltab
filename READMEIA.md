@@ -10,7 +10,7 @@
 * **Problema identificado en proyectos previos:**
   * [robin-liquidium/heliarc](https://github.com/robin-liquidium/heliarc) es una app nativa de macOS en Swift que depende de AppleScript y ScreenCaptureKit; no funciona en Windows ni dentro de Zen.
   * [dvgmdvgm/zen-arc-ctrltab](https://github.com/dvgmdvgm/zen-arc-ctrltab) intentó implementar esto en Zen pero añadió demasiada complejidad (múltiples vistas: grid, list, split; menús de configuración abultados con 15+ opciones; títulos colocados debajo de las tarjetas en vez de flotantes).
-* **Nuestra solución:** Un mod específico para el **Sine Marketplace** de Zen Browser que elimina todos los protocolos de selección de vista y se enfoca en una sola experiencia: **Fila única horizontal en panel Liquid Glass flotante con tarjetas full-bleed, cápsulas de título esmeriladas y anillo de foco radiante.**
+* **Nuestra solución:** Un mod específico para el **Sine Marketplace** de Zen Browser llamado **Better Tabs & Search** (id: `zen-heliarc-ctrltab`) que elimina todos los protocolos de selección de vista y se enfoca en una sola experiencia: **Fila única horizontal en panel Liquid Glass flotante con tarjetas full-bleed, cápsulas de título esmeriladas, anillo de foco radiante y barra de búsqueda flotante Spotlight.**
 
 ---
 
