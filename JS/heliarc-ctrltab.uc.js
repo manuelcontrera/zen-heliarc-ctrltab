@@ -151,9 +151,84 @@
     showAllContainer.style.display = 'none';
   }
 
-  // Always fetch full thumbnails for all cards in the strip
-  const getThumb = tabPreviews.get.bind(tabPreviews);
-  tabPreviews.get = (tab) => getThumb(tab);
+  // PageThumbs helper for direct in-memory tab canvas snapshots
+  const getPageThumbs = () => {
+    if (window.PageThumbs) return window.PageThumbs;
+    try {
+      if (window.ChromeUtils?.importESModule) {
+        const { PageThumbs } = window.ChromeUtils.importESModule('resource://gre/modules/PageThumbs.sys.mjs');
+        return PageThumbs;
+      }
+    } catch {}
+    return null;
+  };
+
+  // Directly captures the rendered content of a visible tab into an in-memory canvas
+  const captureTabThumbnail = async (tab) => {
+    if (!tab || tab.closing || isTabUnloaded(tab) || isBlankTab(tab)) return null;
+    const browser = tab.linkedBrowser;
+    if (!browser || !browser.browsingContext) return null;
+    const uri = browser.currentURI?.spec || tab.getAttribute?.('zen-url') || tab.getAttribute?.('url') || '';
+    if (!uri || uri.startsWith('about:')) return null;
+
+    try {
+      const pt = getPageThumbs();
+      if (!pt) return null;
+      const canvas = pt.createCanvas(window, 440, 292);
+      await pt.captureToCanvas(browser, canvas);
+      tab.__thumbnail = canvas;
+      tab.__thumbnail_lastURI = uri;
+      return canvas;
+    } catch {
+      return null;
+    }
+  };
+
+  // Fast tab preview retrieval:
+  // 1. Returns in-memory thumbnail immediately if present.
+  // 2. Skips slow 1s disk search for unloaded tabs.
+  // 3. Races native capture against a 160ms timeout to avoid Wayland/WebRender IPC freezes on Linux.
+  const originalGetThumb = tabPreviews.get ? tabPreviews.get.bind(tabPreviews) : async () => null;
+  tabPreviews.get = async function (tab) {
+    if (!tab || isBlankTab(tab)) return null;
+
+    const browser = tab.linkedBrowser;
+    const uri = browser?.currentURI?.spec || tab.getAttribute?.('zen-url') || tab.getAttribute?.('url') || '';
+
+    if (tab.__thumbnail_lastURI && tab.__thumbnail_lastURI !== uri) {
+      tab.__thumbnail = null;
+      tab.__thumbnail_lastURI = null;
+    }
+
+    if (tab.__thumbnail) {
+      const preview = native.previews?.find?.((p) => p._tab === tab);
+      if (preview) preview.setAttribute('has-thumbnail', '');
+      return tab.__thumbnail;
+    }
+
+    if (isTabUnloaded(tab) || (browser && !browser.browsingContext)) {
+      return null;
+    }
+
+    let result = null;
+    try {
+      result = await Promise.race([
+        originalGetThumb(tab),
+        new Promise((resolve) => setTimeout(() => resolve(null), 160)),
+      ]);
+    } catch {
+      result = null;
+    }
+
+    if (result) {
+      tab.__thumbnail = result;
+      tab.__thumbnail_lastURI = uri;
+      const preview = native.previews?.find?.((p) => p._tab === tab);
+      if (preview) preview.setAttribute('has-thumbnail', '');
+    }
+
+    return result;
+  };
 
   // Strictly deduplicate and sanitize tab list to prevent duplicate or zombie cards
   // (especially when tabs are hibernated/unloaded, in other workspaces, or closed)
@@ -265,14 +340,27 @@
       preview.hidden = true;
       preview.style.display = 'none';
       preview.removeAttribute('heliarc-unloaded');
-      const fallbackImg = preview.querySelector?.('.heliarc-fallback-icon');
-      if (fallbackImg) fallbackImg.removeAttribute('src');
+      preview.removeAttribute('has-thumbnail');
+      const inner = preview.querySelector?.('.ctrlTab-preview-inner') || preview;
+      const fallback = inner.querySelector?.('.heliarc-fallback');
+      const fallbackImg = fallback?.querySelector?.('.heliarc-fallback-icon') || preview.querySelector?.('.heliarc-fallback-icon');
+      if (fallbackImg) {
+        fallbackImg.removeAttribute('src');
+        try { fallbackImg.src = ''; } catch {}
+      }
       originalUpdatePreview?.call(this, preview, tab);
       return;
     }
 
     preview.hidden = false;
     preview.style.removeProperty('display');
+
+    if (tab.__thumbnail) {
+      preview.setAttribute('has-thumbnail', '');
+    } else {
+      preview.removeAttribute('has-thumbnail');
+    }
+
     originalUpdatePreview.call(this, preview, tab);
 
     const inner = preview.querySelector('.ctrlTab-preview-inner') || preview;
@@ -302,10 +390,17 @@
     if (fallback) {
       const fallbackImg = fallback.querySelector('.heliarc-fallback-icon');
       if (fallbackImg) {
-        if (tab.image) {
-          fallbackImg.src = tab.image;
+        const iconSrc =
+          tab.image ||
+          tab.getAttribute?.('image') ||
+          (window.gBrowser?.getIcon && window.gBrowser.getIcon(tab)) ||
+          'chrome://global/skin/icons/defaultFavicon.svg';
+        if (iconSrc) {
+          fallbackImg.setAttribute('src', iconSrc);
+          try { fallbackImg.src = iconSrc; } catch {}
         } else {
           fallbackImg.removeAttribute('src');
+          try { fallbackImg.src = ''; } catch {}
         }
       }
     }
@@ -443,18 +538,28 @@
     const startX = Math.max(0, Math.round((w - totalWidth) / 2));
     const startY = Math.max(0, Math.round((h - totalHeight) / 2));
 
+    panel._lastStartX = startX;
+    panel._lastStartY = startY;
+
     syncBackdrop(totalWidth, totalHeight);
     panel.openPopup(root, 'overlap', startX, startY);
   };
 
-  // Re-center on popupshown to guarantee sub-pixel center alignment across all screen scalings
+  // Re-center on popupshown only if discrepancy > 4px to avoid Wayland xdg_popup reposition loops
   panel.addEventListener('popupshown', (e) => {
     if (e.target !== panel) return;
     const curW = (card && card.offsetWidth) || panel.clientWidth || (panel.getBoundingClientRect?.().width) || 0;
     const curH = (card && card.offsetHeight) || panel.clientHeight || (panel.getBoundingClientRect?.().height) || 0;
     const exactX = Math.round((window.innerWidth - curW) / 2);
     const exactY = Math.round((window.innerHeight - curH) / 2);
-    panel.moveToAnchor(root, 'overlap', exactX, exactY);
+
+    const prevX = panel._lastStartX ?? exactX;
+    const prevY = panel._lastStartY ?? exactY;
+    if (Math.abs(exactX - prevX) > 4 || Math.abs(exactY - prevY) > 4) {
+      panel.moveToAnchor(root, 'overlap', exactX, exactY);
+      panel._lastStartX = exactX;
+      panel._lastStartY = exactY;
+    }
     syncBackdrop(curW, curH);
   });
 
@@ -946,11 +1051,47 @@
     },
   };
 
+  // Proactive background thumbnail capture:
+  // Caches thumbnails while user is active on a tab so Ctrl+Tab opens instantaneously without IPC delays
+  let proactiveCaptureTimer = null;
+  const scheduleActiveTabCapture = (delay = 400) => {
+    if (proactiveCaptureTimer) clearTimeout(proactiveCaptureTimer);
+    proactiveCaptureTimer = setTimeout(() => {
+      proactiveCaptureTimer = null;
+      try {
+        const activeTab = window.gBrowser?.selectedTab;
+        if (activeTab) captureTabThumbnail(activeTab);
+      } catch {}
+    }, delay);
+  };
+
+  const onTabSelectListener = () => {
+    scheduleActiveTabCapture(350);
+  };
+
+  if (window.gBrowser?.tabContainer?.addEventListener) {
+    window.gBrowser.tabContainer.addEventListener('TabSelect', onTabSelectListener);
+  }
+
+  const onPageLoadListener = (e) => {
+    try {
+      if (e.target && e.target.defaultView === window.gBrowser?.selectedBrowser?.contentWindow) {
+        scheduleActiveTabCapture(500);
+      }
+    } catch {}
+  };
+  window.addEventListener('pageshow', onPageLoadListener, true);
+
   const observer = { observe: apply };
   apply();
   prefs.addObserver(P, observer);
   window.addEventListener('unload', () => {
     prefs.removeObserver(P, observer);
+    if (window.gBrowser?.tabContainer?.removeEventListener) {
+      window.gBrowser.tabContainer.removeEventListener('TabSelect', onTabSelectListener);
+    }
+    window.removeEventListener('pageshow', onPageLoadListener, true);
+    if (proactiveCaptureTimer) clearTimeout(proactiveCaptureTimer);
     hideBackdrop();
     backdrop?.remove();
     searchOverlay?.remove();

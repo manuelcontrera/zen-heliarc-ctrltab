@@ -63,6 +63,7 @@ class El {
   }
   hidePopup() { this.hidden = true; }
   openPopup() { this.opened = true; }
+  moveToAnchor(...args) { (this.moveToAnchorCalls ||= []).push(args); }
   focus() { env.document.activeElement = this; }
   setSelectionRange(start, end) { this.selectionStart = start; this.selectionEnd = end; }
   getBoundingClientRect() { return { width: 100, height: 100 }; }
@@ -818,6 +819,89 @@ test('Spotlight Tab Search focuses input, resets caret at index 0, and header cl
   }
   assert.strictEqual(doc.activeElement, input);
 });
+
+test('updatePreview manages has-thumbnail attribute when thumbnail is present vs missing', () => {
+  const { native } = load();
+  const preview = new El('button');
+  const inner = new El('div');
+  inner.className = 'ctrlTab-preview-inner';
+  const fav = new El('div');
+  fav.className = 'ctrlTab-favicon-container';
+  const label = new El('label');
+  label.className = 'ctrlTab-label';
+  inner.append(fav, label);
+  preview.append(inner);
+
+  // Tab without thumbnail
+  const tabNoThumb = { isConnected: true, label: 'Tab without thumbnail' };
+  native.updatePreview(preview, tabNoThumb);
+  assert.strictEqual(preview.hasAttribute('has-thumbnail'), false);
+
+  // Tab with in-memory thumbnail
+  const tabWithThumb = { isConnected: true, label: 'Tab with thumbnail', __thumbnail: 'canvas-mock' };
+  native.updatePreview(preview, tabWithThumb);
+  assert.strictEqual(preview.hasAttribute('has-thumbnail'), true);
+
+  // Clear preview
+  native.updatePreview(preview, null);
+  assert.strictEqual(preview.hasAttribute('has-thumbnail'), false);
+});
+
+test('tabPreviews.get fast path returns in-memory cached thumbnail immediately', async () => {
+  const { win } = load();
+  const cachedCanvas = { id: 'cached-canvas' };
+  const tab = {
+    isConnected: true,
+    linkedBrowser: {
+      currentURI: { spec: 'https://example.com' },
+      browsingContext: {},
+    },
+    __thumbnail: cachedCanvas,
+    __thumbnail_lastURI: 'https://example.com',
+  };
+
+  const res = await win.tabPreviews.get(tab);
+  assert.strictEqual(res, cachedCanvas);
+});
+
+test('tabPreviews.get returns null immediately for unloaded tabs without waiting for disk thumbnail', async () => {
+  const { win } = load();
+  const unloadedTab = {
+    isConnected: true,
+    hasAttribute: (a) => a === 'pending',
+    pending: true,
+    linkedBrowser: {
+      currentURI: { spec: 'https://unloaded.example.com' },
+    },
+  };
+
+  const res = await win.tabPreviews.get(unloadedTab);
+  assert.strictEqual(res, null);
+});
+
+test('popupshown avoids redundant moveToAnchor reposition on Wayland when popup coordinates match', () => {
+  const { native, panel } = load();
+  native.previews = [new El(), new El()];
+  native._openPanel();
+
+  assert.strictEqual(panel.opened, true);
+  const card = panel.children.find((c) => c.id === 'heliarc-card');
+  card.offsetWidth = 1200 - (panel._lastStartX * 2);
+  card.offsetHeight = 800 - (panel._lastStartY * 2);
+  const initialStartX = panel._lastStartX;
+  const initialStartY = panel._lastStartY;
+
+  // Trigger popupshown when dimensions match
+  for (const listener of (panel.listeners.popupshown || [])) {
+    listener({ target: panel });
+  }
+
+  // moveToAnchor should NOT be called because discrepancy <= 4px
+  assert.strictEqual((panel.moveToAnchorCalls || []).length, 0);
+  assert.strictEqual(panel._lastStartX, initialStartX);
+  assert.strictEqual(panel._lastStartY, initialStartY);
+});
+
 
 
 
