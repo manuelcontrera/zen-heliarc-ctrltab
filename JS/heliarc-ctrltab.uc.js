@@ -230,102 +230,28 @@
     return result;
   };
 
-  // Strictly deduplicate and sanitize tab list to prevent duplicate or zombie cards
-  // (especially when tabs are hibernated/unloaded, in other workspaces, or closed)
-  const getCleanTabList = () => {
-    let rawList = [];
+  // Read-only access to the browser's native recently used tabs order.
+  // The mod does not modify, alter, or reorder the browser's registered visit history.
+  const getBrowserRecentTabs = () => {
     if (Array.isArray(native._recentlyUsedTabs)) {
-      rawList = native._recentlyUsedTabs;
-    } else if (window.gBrowser?.tabs) {
-      rawList = Array.from(window.gBrowser.tabs);
+      return native._recentlyUsedTabs;
     }
-
-    const showUnloaded = pref('show-unloaded', false);
-    const seenTabs = new Set();
-    const seenPanels = new Set();
-    const cleanList = [];
-
-    const addTab = (tab) => {
-      if (!tab) return;
-      if (tab.closing || tab.isConnected === false) return;
-      if (tab.hidden && !tab.selected) return;
-      if (!showUnloaded && isTabUnloaded(tab)) return;
-      if (isBlankTab(tab)) return;
-      if (seenTabs.has(tab)) return;
-
-      const panelId = tab.linkedPanel || tab.permanentKey;
-      if (panelId && seenPanels.has(panelId)) return;
-
-      seenTabs.add(tab);
-      if (panelId) seenPanels.add(panelId);
-      cleanList.push(tab);
-    };
-
-    for (const tab of rawList) {
-      addTab(tab);
-    }
-
     if (window.gBrowser?.tabs) {
-      for (const tab of window.gBrowser.tabs) {
-        addTab(tab);
-      }
+      return Array.from(window.gBrowser.tabs).sort(
+        (a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0)
+      );
     }
-
-    if (cleanList.length === 0 && rawList.length > 0) {
-      cleanList.push(rawList[0]);
-    }
-
-    if (Array.isArray(native._recentlyUsedTabs)) {
-      native._recentlyUsedTabs = cleanList.slice();
-    }
-
-    return cleanList;
+    return [];
   };
 
-  try {
-    Object.defineProperty(native, 'tabList', {
-      get: getCleanTabList,
-      configurable: true,
-      enumerable: true,
-    });
-  } catch (e) {
-    console.error('Heliarc: Failed to define sanitized tabList getter', e);
-  }
-
-  // Ensure detachTab removes ALL occurrences of a tab (not just the first)
-  if (typeof native.detachTab === 'function') {
-    const originalDetachTab = native.detachTab;
-    native.detachTab = function (tab) {
-      if (Array.isArray(this._recentlyUsedTabs)) {
-        this._recentlyUsedTabs = this._recentlyUsedTabs.filter(
-          (t) => t !== tab && (!tab?.linkedPanel || t?.linkedPanel !== tab.linkedPanel)
-        );
-      } else {
-        originalDetachTab.call(this, tab);
-      }
-    };
-  }
-
-  // Ensure attachTab deduplicates before inserting
-  if (typeof native.attachTab === 'function') {
-    const originalAttachTab = native.attachTab;
-    native.attachTab = function (tab, pos) {
-      if (!tab || tab.closing || (tab.hidden && !tab.selected)) return;
-      if (!pref('show-unloaded', false) && isTabUnloaded(tab)) return;
-      if (isBlankTab(tab)) return;
-      this.detachTab(tab);
-      if (!Array.isArray(this._recentlyUsedTabs)) {
-        originalAttachTab.call(this, tab, pos);
-        return;
-      }
-      if (pos === 0) {
-        this._recentlyUsedTabs.unshift(tab);
-      } else if (typeof pos === 'number' && pos > 0) {
-        this._recentlyUsedTabs.splice(pos, 0, tab);
-      } else {
-        this._recentlyUsedTabs.push(tab);
-      }
-    };
+  if (!('tabList' in native)) {
+    try {
+      Object.defineProperty(native, 'tabList', {
+        get: getBrowserRecentTabs,
+        configurable: true,
+        enumerable: true,
+      });
+    } catch {}
   }
 
   // Decorate each preview card to match Heliarc:
@@ -336,7 +262,7 @@
   native.updatePreview = function (preview, tab) {
     if (preview === this.showAllButton) return;
 
-    if (!tab || isBlankTab(tab)) {
+    if (!tab) {
       preview.hidden = true;
       preview.style.display = 'none';
       preview.removeAttribute('heliarc-unloaded');
@@ -433,7 +359,6 @@
   // Customizable delay before HUD appears (quick tap switches without showing HUD)
   const originalOpen = native.open;
   native.open = function () {
-    getCleanTabList();
     const beforeTimer = this._timer;
     originalOpen.call(this);
     const delay = pref('open-delay', 200);
@@ -800,7 +725,7 @@
     const filtered = [];
 
     if (!trimmed) {
-      const recentList = getCleanTabList();
+      const recentList = getBrowserRecentTabs();
       const seen = new Set();
       for (const t of recentList) {
         const match = allOpenTabs.find((item) => item.tab === t);

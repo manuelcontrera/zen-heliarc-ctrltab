@@ -315,53 +315,59 @@ test('updatePreview with null/falsy tab: hides preview, resets unloaded attribut
   assert.strictEqual(icon?.getAttribute('src'), null);
 });
 
-test('tabList deduplicates tabs and filters out closing, disconnected, or hidden tabs', () => {
+test('tabList reads the browser\'s registered order of visited tabs from _recentlyUsedTabs without altering it', () => {
   const { native } = load();
   const tab1 = { linkedPanel: 'p1', isConnected: true, label: 'Tab 1' };
   const tab2 = { linkedPanel: 'p2', isConnected: true, label: 'Tab 2' };
-  const tab2Dup = { linkedPanel: 'p2', isConnected: true, label: 'Tab 2 Duplicate' };
-  const tabClosing = { linkedPanel: 'p3', closing: true, isConnected: true };
-  const tabDisconnected = { linkedPanel: 'p4', isConnected: false };
-  const tabHidden = { linkedPanel: 'p5', hidden: true, selected: false, isConnected: true };
+  const tab3 = { linkedPanel: 'p3', isConnected: true, label: 'Tab 3' };
 
-  native._recentlyUsedTabs = [tab1, tab2, tab2, tab2Dup, tabClosing, tabDisconnected, tabHidden, tab1];
+  native._recentlyUsedTabs = [tab2, tab3, tab1];
 
   const list = native.tabList;
-  assert.strictEqual(list.length, 2);
-  assert.strictEqual(list[0], tab1);
-  assert.strictEqual(list[1], tab2);
+  assert.strictEqual(list.length, 3);
+  assert.strictEqual(list[0], tab2);
+  assert.strictEqual(list[1], tab3);
+  assert.strictEqual(list[2], tab1);
+
+  // Assert native._recentlyUsedTabs was not mutated or reordered
+  assert.strictEqual(native._recentlyUsedTabs[0], tab2);
+  assert.strictEqual(native._recentlyUsedTabs[1], tab3);
+  assert.strictEqual(native._recentlyUsedTabs[2], tab1);
 });
 
-test('detachTab removes all duplicate occurrences of matching tab from _recentlyUsedTabs', () => {
+test('native.attachTab and native.detachTab are left untouched to let the browser manage visit history', () => {
   const { native } = load();
-  const tabA = { linkedPanel: 'pA' };
-  const tabB = { linkedPanel: 'pB' };
-  native._recentlyUsedTabs = [tabA, tabB, tabA];
+  const customAttach = () => {};
+  const customDetach = () => {};
+  native.attachTab = customAttach;
+  native.detachTab = customDetach;
 
-  native.detachTab(tabA);
-  assert.strictEqual(native._recentlyUsedTabs.length, 1);
-  assert.strictEqual(native._recentlyUsedTabs[0], tabB);
+  // Verify the script does not overwrite the browser's native methods
+  assert.strictEqual(native.attachTab, customAttach);
+  assert.strictEqual(native.detachTab, customDetach);
 });
 
-test('default show-unloaded is false and excludes pending, discarded, and zen-unloaded tabs', () => {
-  const { store, native } = load();
-  assert.strictEqual(store['zen.ctrlTab.show-pending-tabs'], false);
+test('native.open does not mutate or alter the browser\'s registered _recentlyUsedTabs array', () => {
+  const tab1 = { linkedPanel: 'p1', label: 'Tab 1' };
+  const tab2 = { linkedPanel: 'p2', label: 'Tab 2' };
+  const tab3 = { linkedPanel: 'p3', label: 'Tab 3' };
+  const { native } = load({}, [tab1, tab2, tab3]);
 
-  const activeTab = { linkedPanel: 'p1', isConnected: true, label: 'Active Tab' };
-  const pendingTab = { linkedPanel: 'p2', isConnected: true, hasAttribute: (a) => a === 'pending' };
-  const discardedAttrTab = { linkedPanel: 'p3', isConnected: true, hasAttribute: (a) => a === 'discarded' };
-  const zenUnloadedTab = { linkedPanel: 'p4', isConnected: true, hasAttribute: (a) => a === 'zen-unloaded' };
-  const discardedPropTab = { linkedPanel: 'p5', isConnected: true, discarded: true };
+  // Suppose user visited tab 3, then tab 1
+  native._recentlyUsedTabs = [tab1, tab3];
 
-  native._recentlyUsedTabs = [activeTab, pendingTab, discardedAttrTab, zenUnloadedTab, discardedPropTab];
+  native.open();
 
-  const list = native.tabList;
-  assert.strictEqual(list.length, 1);
-  assert.strictEqual(list[0], activeTab);
+  // The array must NOT be mutated or overwritten with [tab1, tab2, tab3]
+  assert.strictEqual(native._recentlyUsedTabs.length, 2);
+  assert.strictEqual(native._recentlyUsedTabs[0], tab1);
+  assert.strictEqual(native._recentlyUsedTabs[1], tab3);
 });
 
-test('when show-unloaded is enabled, unloaded tabs are included in tabList', () => {
-  const { native } = load({ 'zen-heliarc-ctrltab.show-unloaded': true });
+test('reflects show-unloaded into Zen Browser native preference without altering tabList', () => {
+  const { store, native } = load({ 'zen-heliarc-ctrltab.show-unloaded': true });
+  assert.strictEqual(store['zen.ctrlTab.show-pending-tabs'], true);
+
   const activeTab = { linkedPanel: 'p1', isConnected: true, label: 'Active Tab' };
   const pendingTab = { linkedPanel: 'p2', isConnected: true, hasAttribute: (a) => a === 'pending' };
 
@@ -768,7 +774,7 @@ test('Spotlight Tab Search query matches "pinned" and "fijada" for pinned tabs a
   assert.strictEqual(search.getItems()[0].title, 'WhatsApp');
 });
 
-test('Ctrl+Tab switcher ignores blank and empty New Tab pages in tabList, attachTab, and updatePreview', () => {
+test('Ctrl+Tab switcher preserves browser recorded tab order even when tabs are newly created or blank', () => {
   const blankTab = {
     label: 'New Tab',
     linkedPanel: 'p-blank',
@@ -783,22 +789,19 @@ test('Ctrl+Tab switcher ignores blank and empty New Tab pages in tabList, attach
   };
 
   const { native } = load({}, [activeTab, blankTab]);
+  // Browser recorded order: blankTab was visited/selected most recently
   native._recentlyUsedTabs = [blankTab, activeTab];
 
-  // tabList should only contain the active web tab, excluding blankTab
+  // tabList reads the browser's registered order without altering it
   const list = native.tabList;
-  assert.strictEqual(list.length, 1);
-  assert.strictEqual(list[0], activeTab);
+  assert.strictEqual(list.length, 2);
+  assert.strictEqual(list[0], blankTab);
+  assert.strictEqual(list[1], activeTab);
 
-  // attachTab should reject blankTab
-  native.attachTab(blankTab, 0);
-  assert.strictEqual(native._recentlyUsedTabs.includes(blankTab), false);
-
-  // updatePreview should hide preview for blankTab
+  // updatePreview does not throw and renders preview when tab is present
   const preview = new El('button');
   native.updatePreview(preview, blankTab);
-  assert.strictEqual(preview.hidden, true);
-  assert.strictEqual(preview.style.display, 'none');
+  assert.strictEqual(preview.hidden, false);
 });
 
 test('Spotlight Tab Search focuses input, resets caret at index 0, and header click focuses input', () => {
@@ -954,6 +957,26 @@ test('keyboard navigation uses preventScroll to avoid layout thrashing and repea
   keydownListener(evt3);
   assert.strictEqual(prevented3, false);
 });
+
+test('Spotlight Tab Search respects the browser\'s registered recent visit order when query is empty', () => {
+  const tabA = { label: 'Doc A', linkedPanel: 'pA', isConnected: true, getAttribute: () => null };
+  const tabB = { label: 'Doc B', linkedPanel: 'pB', isConnected: true, getAttribute: () => null };
+  const tabC = { label: 'Doc C', linkedPanel: 'pC', isConnected: true, getAttribute: () => null };
+
+  const { win, native } = load({}, [tabA, tabB, tabC]);
+  // Browser recorded visit order: Tab C visited most recently, then Tab A, then Tab B
+  native._recentlyUsedTabs = [tabC, tabA, tabB];
+
+  const search = win.__zenHeliarcSearch;
+  search.open();
+  const items = search.getItems();
+
+  assert.strictEqual(items.length, 3);
+  assert.strictEqual(items[0].title, 'Doc C');
+  assert.strictEqual(items[1].title, 'Doc A');
+  assert.strictEqual(items[2].title, 'Doc B');
+});
+
 
 
 
