@@ -482,7 +482,11 @@
       ? (currentIndex + step + items.length) % items.length
       : Math.min(items.length - 1, Math.max(0, currentIndex + step));
 
-    items[nextIndex].focus();
+    try {
+      items[nextIndex].focus({ preventScroll: true });
+    } catch {
+      items[nextIndex].focus();
+    }
     if (items[nextIndex]._tab && window.gBrowser?.warmupTab) {
       window.gBrowser.warmupTab(items[nextIndex]._tab);
     }
@@ -505,13 +509,13 @@
     }
   });
 
-  // Smooth Tab repeat throttling (8 tabs per second) so holding Tab cycles predictably
+  // Fluid Tab repeat throttling (18 tabs per second) so holding Tab cycles smoothly without stutter
   let lastStep = 0;
   window.addEventListener('keydown', (e) => {
     if (!prefs.getBoolPref('browser.ctrlTab.sortByRecentlyUsed', false)) return;
     if (window.ShortcutUtils?.getSystemActionForEvent(e) !== window.ShortcutUtils?.CYCLE_TABS) return;
 
-    const rate = 8;
+    const rate = 18;
     if (e.repeat && rate && e.timeStamp - lastStep < 1000 / rate) {
       e.preventDefault();
       e.stopPropagation();

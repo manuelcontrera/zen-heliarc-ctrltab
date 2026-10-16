@@ -64,7 +64,10 @@ class El {
   hidePopup() { this.hidden = true; }
   openPopup() { this.opened = true; }
   moveToAnchor(...args) { (this.moveToAnchorCalls ||= []).push(args); }
-  focus() { env.document.activeElement = this; }
+  focus(opts) {
+    this.focusOpts = opts;
+    env.document.activeElement = this;
+  }
   setSelectionRange(start, end) { this.selectionStart = start; this.selectionEnd = end; }
   getBoundingClientRect() { return { width: 100, height: 100 }; }
 }
@@ -901,6 +904,57 @@ test('popupshown avoids redundant moveToAnchor reposition on Wayland when popup 
   assert.strictEqual(panel._lastStartX, initialStartX);
   assert.strictEqual(panel._lastStartY, initialStartY);
 });
+
+test('keyboard navigation uses preventScroll to avoid layout thrashing and repeat throttle allows 18 tabs/sec', () => {
+  const { native, panel, win } = load({ 'browser.ctrlTab.sortByRecentlyUsed': true });
+  const tile0 = new El();
+  const tile1 = new El();
+  native.previews = [tile0, tile1];
+  env.document.activeElement = tile0;
+
+  // Trigger ArrowRight navigation
+  panel.listeners.keydown[0]({ key: 'ArrowRight', preventDefault() {} });
+  assert.strictEqual(env.document.activeElement, tile1);
+  assert.deepStrictEqual(tile1.focusOpts, { preventScroll: true });
+
+  // Test repeat throttling at 18 tabs/sec (1000/18 ~ 55.5ms)
+  const keydownListener = win.listeners.keydown[0];
+  let prevented = false;
+  const evt1 = {
+    action: 'cycle',
+    repeat: true,
+    timeStamp: 1000,
+    preventDefault: () => { prevented = true; },
+    stopPropagation: () => {},
+  };
+  keydownListener(evt1);
+  assert.strictEqual(prevented, false);
+
+  // Less than 55ms later: should be throttled
+  let prevented2 = false;
+  const evt2 = {
+    action: 'cycle',
+    repeat: true,
+    timeStamp: 1030,
+    preventDefault: () => { prevented2 = true; },
+    stopPropagation: () => {},
+  };
+  keydownListener(evt2);
+  assert.strictEqual(prevented2, true);
+
+  // 60ms later: should NOT be throttled
+  let prevented3 = false;
+  const evt3 = {
+    action: 'cycle',
+    repeat: true,
+    timeStamp: 1065,
+    preventDefault: () => { prevented3 = true; },
+    stopPropagation: () => {},
+  };
+  keydownListener(evt3);
+  assert.strictEqual(prevented3, false);
+});
+
 
 
 
