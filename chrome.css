@@ -3,6 +3,18 @@
    Authentic Arc/Heliarc tab switcher with Liquid Glass HUD and live previews
    ========================================================================== */
 
+/* ==========================================================================
+   WebRender Layer Compositing Bridge (Floaty UI compositing rule)
+   Forces Gecko WebRender to composite the live web page inside the window buffer
+   while Ctrl+Tab or SpotTab is active so backdrop-filter can sample live page pixels.
+   ========================================================================== */
+:root[heliarc-ctrltab-active] #tabbrowser-tabpanels :is(.browserSidebarContainer, .browserStack),
+:root[heliarc-search-active] #tabbrowser-tabpanels :is(.browserSidebarContainer, .browserStack),
+:root:has(#heliarc-backdrop[active]) #tabbrowser-tabpanels :is(.browserSidebarContainer, .browserStack),
+:root:has(#heliarc-search-overlay[active]) #tabbrowser-tabpanels :is(.browserSidebarContainer, .browserStack) {
+  will-change: transform !important;
+  backface-visibility: hidden !important;
+}
 #ctrlTab-panel {
   --heliarc-card-width: 210px;
   --heliarc-card-height: 140px;
@@ -93,13 +105,13 @@
 /* In-window Gaussian blur backdrop element (blurs the live web page directly in browser window compositor) */
 #heliarc-backdrop {
   position: fixed !important;
-  left: 50% !important;
-  top: 50% !important;
-  transform: translate(-50%, -50%) !important;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   display: none;
   pointer-events: none !important;
   border-radius: var(--heliarc-panel-radius, 20px) !important;
-  clip-path: inset(0 round var(--heliarc-panel-radius, 20px)) !important;
+  overflow: hidden !important;
   backdrop-filter: blur(40px) saturate(190%) contrast(105%) !important;
   -webkit-backdrop-filter: blur(40px) saturate(190%) contrast(105%) !important;
   background: rgba(18, 18, 24, 0.40) !important;
@@ -128,7 +140,7 @@
   padding: var(--heliarc-panel-padding) !important;
   border-radius: var(--heliarc-panel-radius) !important;
   clip-path: inset(0 round var(--heliarc-panel-radius)) !important;
-  background: rgba(18, 18, 24, 0.48) !important;
+  background: rgba(18, 18, 24, 0.28) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   border: none !important;
@@ -386,11 +398,11 @@
   width: 680px !important;
   max-width: 92vw !important;
   box-sizing: border-box !important;
-  background: rgba(22, 22, 22, 0.82) !important;
-  backdrop-filter: blur(40px) !important;
-  -webkit-backdrop-filter: blur(40px) !important;
+  background: rgba(20, 20, 25, 0.65) !important;
+  backdrop-filter: blur(40px) saturate(190%) contrast(105%) !important;
+  -webkit-backdrop-filter: blur(40px) saturate(190%) contrast(105%) !important;
   border-radius: 18px !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
   box-shadow: 0 32px 80px rgba(0, 0, 0, 0.65),
               0 4px 16px rgba(0, 0, 0, 0.35),
               0 0 0 1px rgba(255, 255, 255, 0.05) !important;

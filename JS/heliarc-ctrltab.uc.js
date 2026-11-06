@@ -129,20 +129,31 @@
     document.documentElement.append(backdrop);
   }
 
-  const syncBackdrop = (w, h) => {
+  const syncBackdrop = (w, h, x, y) => {
     if (!backdrop) return;
     const width = w || (card ? card.offsetWidth : 0) || 0;
     const height = h || (card ? card.offsetHeight : 0) || 0;
     if (width > 0 && height > 0) {
       backdrop.style.width = Math.round(width) + 'px';
       backdrop.style.height = Math.round(height) + 'px';
+      if (typeof x === 'number' && typeof y === 'number') {
+        backdrop.style.left = Math.round(x) + 'px';
+        backdrop.style.top = Math.round(y) + 'px';
+        backdrop.style.transform = 'none';
+      }
       backdrop.setAttribute('active', '');
+      if (document.documentElement) {
+        document.documentElement.setAttribute('heliarc-ctrltab-active', '');
+      }
     }
   };
 
   const hideBackdrop = () => {
     if (backdrop) {
       backdrop.removeAttribute('active');
+    }
+    if (document.documentElement) {
+      document.documentElement.removeAttribute('heliarc-ctrltab-active');
     }
   };
 
@@ -470,7 +481,7 @@
     panel._lastStartX = startX;
     panel._lastStartY = startY;
 
-    syncBackdrop(totalWidth, totalHeight);
+    syncBackdrop(totalWidth, totalHeight, startX, startY);
     panel.openPopup(root, 'overlap', startX, startY);
   };
 
@@ -489,7 +500,7 @@
       panel._lastStartX = exactX;
       panel._lastStartY = exactY;
     }
-    syncBackdrop(curW, curH);
+    syncBackdrop(curW, curH, exactX, exactY);
   });
 
   panel.addEventListener('popuphiding', hideBackdrop);
@@ -845,6 +856,9 @@
 
     searchIsOpen = true;
     searchOverlay.setAttribute('active', '');
+    if (document.documentElement) {
+      document.documentElement.setAttribute('heliarc-search-active', '');
+    }
     searchInput.value = '';
     updateSearchResults('');
 
@@ -860,6 +874,9 @@
     if (!searchIsOpen) return;
     searchIsOpen = false;
     searchOverlay.removeAttribute('active');
+    if (document.documentElement) {
+      document.documentElement.removeAttribute('heliarc-search-active');
+    }
     searchInput.value = '';
     try {
       if (window.gBrowser?.selectedBrowser) {
@@ -1024,5 +1041,7 @@
     hideBackdrop();
     backdrop?.remove();
     searchOverlay?.remove();
+    document.documentElement?.removeAttribute('heliarc-ctrltab-active');
+    document.documentElement?.removeAttribute('heliarc-search-active');
   }, { once: true });
 })();

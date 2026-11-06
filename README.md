@@ -17,7 +17,7 @@ An authentic **Arc Browser / Heliarc** tab switcher and **Spotlight command pale
 - **Luminous Focus Ring:** Continuous focus outline with an outer 3px gap, soft glow, and subtle scale effect matching your Zen theme's accent color (`--zen-primary-color`).
 - **Liquid Glass HUD:** Translucent dark panel with high-saturation background blur (`backdrop-filter: blur(40px)`), refined border radii, and deep ambient drop shadow.
 - **Graceful Fallbacks:** Tabs that are unloaded or pending display a frosted dark card with an enlarged central favicon and title pill.
-- **Smooth Cycling:** Key-repeat throttled to 8 tabs per second so you never lose track of your selection while holding Tab. Arrow keys (`←` / `→`) navigate effortlessly.
+- **Smooth Cycling:** Key-repeat throttled to 18 tabs per second so you never lose track of your selection while holding Tab. Arrow keys (`←` / `→`) navigate effortlessly.
 
 ---
 

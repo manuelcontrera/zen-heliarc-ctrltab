@@ -276,6 +276,7 @@ test('in-window gaussian blur backdrop lifecycle: attaches to documentElement an
   // Simulate _openPanel execution
   native._openPanel();
   assert.strictEqual(backdrop.hasAttribute('active'), true);
+  assert.strictEqual(env.document.documentElement.hasAttribute('heliarc-ctrltab-active'), true);
   assert.ok(parseInt(backdrop.style.width, 10) > 0, 'Backdrop width should be calculated');
   assert.ok(parseInt(backdrop.style.height, 10) > 0, 'Backdrop height should be calculated');
 
@@ -284,6 +285,7 @@ test('in-window gaussian blur backdrop lifecycle: attaches to documentElement an
     listener();
   }
   assert.strictEqual(backdrop.hasAttribute('active'), false);
+  assert.strictEqual(env.document.documentElement.hasAttribute('heliarc-ctrltab-active'), false);
 });
 
 test('updatePreview with null/falsy tab: hides preview, resets unloaded attribute, and clears fallback icon', () => {
@@ -402,6 +404,7 @@ test('Spotlight Tab Search opens, marks overlay active, and lists open tabs', ()
   search.open();
   assert.strictEqual(search.isOpen(), true);
   assert.ok(search.elements.overlay.hasAttribute('active'));
+  assert.strictEqual(env.document.documentElement.hasAttribute('heliarc-search-active'), true);
 
   const items = search.getItems();
   assert.strictEqual(items.length, 2);
@@ -411,6 +414,7 @@ test('Spotlight Tab Search opens, marks overlay active, and lists open tabs', ()
   search.close();
   assert.strictEqual(search.isOpen(), false);
   assert.strictEqual(search.elements.overlay.hasAttribute('active'), false);
+  assert.strictEqual(env.document.documentElement.hasAttribute('heliarc-search-active'), false);
 });
 
 test('Spotlight Tab Search filters tabs by title and workspace', () => {
